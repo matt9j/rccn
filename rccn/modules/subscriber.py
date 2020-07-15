@@ -528,15 +528,15 @@ class Subscriber:
 
     def update_location(self, imsi, msisdn, ts_update=False):
         try:
-            rk_hlr = riak_client.bucket('hlr')
-            subscriber = rk_hlr.get(str(imsi), timeout=RIAK_TIMEOUT)
-            roaming_log.info('RIAK: pushing %s, was %s' % (config['local_ip'],subscriber.data['current_bts']))
-            subscriber.data['current_bts'] = config['local_ip']
-            if ts_update:
-                now = int(time.time())
-                subscriber.data['updated'] = now
-                subscriber.indexes = set([('modified_int', now), ('msisdn_bin', subscriber.data['msisdn'])])
-            subscriber.store()
+            # rk_hlr = riak_client.bucket('hlr')
+            # subscriber = rk_hlr.get(str(imsi), timeout=RIAK_TIMEOUT)
+            # roaming_log.info('RIAK: pushing %s, was %s' % (config['local_ip'],subscriber.data['current_bts']))
+            # subscriber.data['current_bts'] = config['local_ip']
+            # if ts_update:
+            #     now = int(time.time())
+            #     subscriber.data['updated'] = now
+            #     subscriber.indexes = set([('modified_int', now), ('msisdn_bin', subscriber.data['msisdn'])])
+            # subscriber.store()
 
             if ts_update:
                 self._update_location_pghlr(subscriber)
@@ -652,23 +652,23 @@ class Subscriber:
             db_conn.rollback()
             raise SubscriberException('PG_HLR error changing auth status: %s' % e)
 
-        try:
-            now = int(time.time())
-            imsi=self._get_imsi(msisdn)
-            rk_hlr = riak_client.bucket('hlr')
-            subscriber = rk_hlr.get(imsi, timeout=RIAK_TIMEOUT)
-            if subscriber.exists:
-                subscriber.data['authorized'] = auth
-                subscriber.data['updated'] = now
-                subscriber.indexes = set([('modified_int', now), ('msisdn_bin', subscriber.data['msisdn'])])
-                subscriber.store()
-            else:
-                # There's no riak entry for this subscriber, add it.
-                self._provision_in_distributed_hlr(imsi, msisdn)
-        except riak.RiakError as e:
-            raise SubscriberException('RK_HLR error: %s' % e)
-        except socket.error:
-            raise SubscriberException('RK_HLR error: unable to connect')
+        # try:
+        #     now = int(time.time())
+        #     imsi=self._get_imsi(msisdn)
+        #     rk_hlr = riak_client.bucket('hlr')
+        #     subscriber = rk_hlr.get(imsi, timeout=RIAK_TIMEOUT)
+        #     if subscriber.exists:
+        #         subscriber.data['authorized'] = auth
+        #         subscriber.data['updated'] = now
+        #         subscriber.indexes = set([('modified_int', now), ('msisdn_bin', subscriber.data['msisdn'])])
+        #         subscriber.store()
+        #     else:
+        #         # There's no riak entry for this subscriber, add it.
+        #         self._provision_in_distributed_hlr(imsi, msisdn)
+        # except riak.RiakError as e:
+        #     raise SubscriberException('RK_HLR error: %s' % e)
+        # except socket.error:
+        #     raise SubscriberException('RK_HLR error: unable to connect')
 
     def subscription(self, msisdn, status):
         # status 0 - subscription not paid
