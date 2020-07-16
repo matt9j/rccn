@@ -9,3 +9,6 @@ rrd/graphs/*
 *.log
 *.swp
 rai/js/localnet.json
+
+# Package build products
+rccn/rccn.egg-info/
