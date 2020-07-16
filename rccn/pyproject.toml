@@ -8,6 +8,11 @@ license = "AGPL-3.0-or-later"
 [tool.poetry.dependencies]
 python = "^3.7"
 requests = "^2.24.0"
+psycopg2 = "^2.8.5"
+unidecode = "^1.1.1"
+corepost = "^0.0.16"
+smpplib = "^2.1.0"
+gsm0338 = "^1.0.0"
 
 [tool.poetry.dev-dependencies]
 
