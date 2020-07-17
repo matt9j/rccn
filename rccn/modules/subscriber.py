@@ -25,10 +25,16 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import sys
-sys.path.append("..")
-from config import *
+import datetime
 import obscvty
+import psycopg2
+import socket
+import sqlite3
+import time
+import unidecode
+
+from config import (db_conn, sq_hlr_path, config, api_log, roaming_log)
+from decimal import Decimal
 from ESL import *
 
 class SubscriberException(Exception):
