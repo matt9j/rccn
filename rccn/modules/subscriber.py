@@ -471,7 +471,7 @@ class Subscriber:
             imsi = msisdn
             msisdn = extension
         else:
-            imsi = self._get_imsi(msisdn)
+            imsi = self.get_imsi(msisdn)
 
         subscriber_number = config['internal_prefix'] + msisdn
         # check if subscriber already exists
@@ -534,7 +534,7 @@ class Subscriber:
 
 
     def update(self, msisdn, name, number):
-        imsi = self._get_imsi(msisdn)
+        imsi = self.get_imsi(msisdn)
         self._authorize_subscriber_in_local_hlr(msisdn, number, name)
         self.update_location(imsi, number, True)
 
@@ -743,7 +743,7 @@ class Subscriber:
             cur.execute("rollback")
             raise SubscriberException('PG_HLR error updating subscriber data: %s' % e)
 
-    def _get_imsi(self, msisdn):
+    def get_imsi(self, msisdn):
         try:
             sq_hlr = sqlite3.connect(sq_hlr_path)
             sq_hlr_cursor = sq_hlr.cursor()
