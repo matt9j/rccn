@@ -31,7 +31,7 @@ from __future__ import print_function
 
 import sys
 from config import *
-import urllib, obscvty, time
+import urllib, time
 from modules.subscriber import Subscriber, SubscriberException
 from modules.numbering import Numbering, NumberingException
 from threading import Thread
@@ -601,13 +601,6 @@ class SMS:
         finally:
             db_conn.commit()
             cur.close()
-
-    def send_immediate(self, num, text):
-        appstring = 'OpenBSC'
-        appport = 4242
-        vty = obscvty.VTYInteract(appstring, '127.0.0.1', appport)
-        cmd = 'subscriber extension %s sms sender extension %s send %s' % (num, config['smsc'], text)
-        vty.command(cmd)
 
     def broadcast_to_all_subscribers(self, text, btype, location):
         sms_log.debug('Broadcast message to [%s], Location:%s' % (btype, location))
