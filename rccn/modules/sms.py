@@ -32,8 +32,8 @@ from __future__ import print_function
 import sys
 from config import *
 import urllib, obscvty, time
-from subscriber import Subscriber, SubscriberException
-from numbering import Numbering, NumberingException
+from modules.subscriber import Subscriber, SubscriberException
+from modules.numbering import Numbering, NumberingException
 from threading import Thread
 import ESL
 import binascii
