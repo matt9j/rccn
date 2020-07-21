@@ -37,11 +37,12 @@ from config import (db_conn, sq_hlr_path, config, api_log, roaming_log)
 from decimal import Decimal
 from ESL import *
 
+
 class SubscriberException(Exception):
     pass
 
-class Subscriber:
 
+class Subscriber:
     def get_balance(self, subscriber_number):
         # check if extension if yes add internal_prefix
         if len(subscriber_number) == 5:
@@ -72,7 +73,6 @@ class Subscriber:
         except psycopg2.DatabaseError as e:
             cur.close()
             raise SubscriberException('Database error updating balance: %s' % e)
-
 
     def is_authorized(self, subscriber_number, auth_type):
         # auth type 0 check subscriber without checking extension
@@ -399,7 +399,6 @@ class Subscriber:
         except socket.error:
             raise SubscriberException('RK_HLR error: unable to connect')
 
-
     def get_online(self):
         try:
             sq_hlr = sqlite3.connect(sq_hlr_path)
@@ -435,7 +434,6 @@ class Subscriber:
         except sqlite3.Error as e:
             sq_hlr.close()
             raise SubscriberException('SQ_HLR error: %s' % e.args[0])
-
 
     def get_unpaid_subscription(self):
         try:
@@ -574,7 +572,6 @@ class Subscriber:
         except:
             raise SubscriberException('Error in getting new msisdn for existing subscriber')
 
-
     def update(self, msisdn, name, number):
         imsi = self.get_imsi(msisdn)
         self._authorize_subscriber_in_local_hlr(msisdn, number, name)
@@ -675,7 +672,6 @@ class Subscriber:
         vty.command(cmd)
         cmd = 'show subscriber extension %s' % msisdn
         return vty.command(cmd)    
-        
 
     def authorized(self, msisdn, auth):
         # auth 0 subscriber disabled
@@ -865,6 +861,7 @@ class Subscriber:
             raise SubscriberException('RK_HLR error: %s' % e)
         except socket.error:
             raise SubscriberException('RK_HLR error: unable to connect')
+
 
 if __name__ == '__main__':
     sub = Subscriber()
