@@ -29,6 +29,17 @@ visualize = ["graphviz (>0.5.1)", "Twisted (>=16.1.1)"]
 
 [[package]]
 category = "main"
+description = "Erlastic"
+name = "basho-erlastic"
+optional = false
+python-versions = "*"
+version = "2.1.1"
+
+[package.dependencies]
+six = "*"
+
+[[package]]
+category = "main"
 description = "Python package for providing Mozilla's CA Bundle."
 name = "certifi"
 optional = false
@@ -134,6 +145,17 @@ version = "2.0.2"
 
 [[package]]
 category = "main"
+description = "Protocol Buffers"
+name = "python3-protobuf"
+optional = false
+python-versions = "*"
+version = "2.5.0"
+
+[package.dependencies]
+setuptools = "*"
+
+[[package]]
+category = "main"
 description = "YAML parser and emitter for Python"
 name = "pyyaml"
 optional = false
@@ -157,6 +179,19 @@ urllib3 = ">=1.21.1,<1.25.0 || >1.25.0,<1.25.1 || >1.25.1,<1.26"
 [package.extras]
 security = ["pyOpenSSL (>=0.14)", "cryptography (>=1.3.4)"]
 socks = ["PySocks (>=1.5.6,<1.5.7 || >1.5.7)", "win-inet-pton"]
+
+[[package]]
+category = "main"
+description = "Python client for Riak"
+name = "riak"
+optional = false
+python-versions = "*"
+version = "2.7.0"
+
+[package.dependencies]
+basho_erlastic = ">=2.1.1"
+python3_protobuf = ">=2.4.1,<2.6.0"
+six = ">=1.8.0"
 
 [[package]]
 category = "main"
@@ -244,7 +279,7 @@ test = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 
 [metadata]
-content-hash = "7cde80227068503a8c5dcb10f735148943fc1cfaaa92ac85a4ee5365cdd018db"
+content-hash = "a98e898f1ba99cfd26223516c3f4edd94eb66bb2a11ee50f138afb7c17ee5fea"
 python-versions = "^3.7"
 
 [metadata.files]
@@ -255,6 +290,9 @@ attrs = [
 automat = [
     {file = "Automat-20.2.0-py2.py3-none-any.whl", hash = "sha256:b6feb6455337df834f6c9962d6ccf771515b7d939bca142b29c20c2376bc6111"},
     {file = "Automat-20.2.0.tar.gz", hash = "sha256:7979803c74610e11ef0c0d68a2942b152df52da55336e0c9d58daf1831cbdf33"},
+]
+basho-erlastic = [
+    {file = "basho-erlastic-2.1.1.tar.gz", hash = "sha256:d1596a881437f2be71a8426efed1566b7faefb97234cb21440700ecc8367c545"},
 ]
 certifi = [
     {file = "certifi-2020.6.20-py2.py3-none-any.whl", hash = "sha256:8fc0819f1f30ba15bdb34cceffb9ef04d99f420f68eb75d901e9560b8749fc41"},
@@ -309,6 +347,9 @@ pyhamcrest = [
     {file = "PyHamcrest-2.0.2-py3-none-any.whl", hash = "sha256:7ead136e03655af85069b6f47b23eb7c3e5c221aa9f022a4fbb499f5b7308f29"},
     {file = "PyHamcrest-2.0.2.tar.gz", hash = "sha256:412e00137858f04bde0729913874a48485665f2d36fe9ee449f26be864af9316"},
 ]
+python3-protobuf = [
+    {file = "python3-protobuf-2.5.0.tar.gz", hash = "sha256:d752c5e916f6f08df91f546ae53c755394530dc6c000fe1f48c03934751b9572"},
+]
 pyyaml = [
     {file = "PyYAML-5.3.1-cp27-cp27m-win32.whl", hash = "sha256:74809a57b329d6cc0fdccee6318f44b9b8649961fa73144a98735b0aaf029f1f"},
     {file = "PyYAML-5.3.1-cp27-cp27m-win_amd64.whl", hash = "sha256:240097ff019d7c70a4922b6869d8a86407758333f02203e0fc6ff79c5dcede76"},
@@ -325,6 +366,13 @@ pyyaml = [
 requests = [
     {file = "requests-2.24.0-py2.py3-none-any.whl", hash = "sha256:fe75cc94a9443b9246fc7049224f75604b113c36acb93f87b80ed42c44cbb898"},
     {file = "requests-2.24.0.tar.gz", hash = "sha256:b3559a131db72c33ee969480840fff4bb6dd111de7dd27c8ee1f820f4f00231b"},
+]
+riak = [
+    {file = "riak-2.7.0-py2.7.egg", hash = "sha256:96183e54e8d1dfb94470d7c9c3aa55be772688e4984377aa30b81a239a4035c1"},
+    {file = "riak-2.7.0-py3.3.egg", hash = "sha256:2e814d8c50bd103439e64cd1afe0935d62f445424d519cbb3fc956d6e1123bdf"},
+    {file = "riak-2.7.0-py3.4.egg", hash = "sha256:3d6b5df273088f20aec03a16a4e35227c0537a4fe993d073fc4a26a98689745d"},
+    {file = "riak-2.7.0-py3.5.egg", hash = "sha256:13b9bd65ce0f5a87ea0956ebec434848caf9c2b819db5500360601b69866b861"},
+    {file = "riak-2.7.0.tar.gz", hash = "sha256:1c676b90fef357f60adc135ccd180ac28945b61b1367198a2a63df86e9bac1ca"},
 ]
 six = [
     {file = "six-1.15.0-py2.py3-none-any.whl", hash = "sha256:8b74bedcbbbaca38ff6d7491d76f2b06b3592611af620f8426e82dddb04a5ced"},
