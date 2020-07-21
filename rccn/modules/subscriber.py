@@ -43,13 +43,39 @@ class SubscriberException(Exception):
 
 
 class Subscriber:
+    """Model encapsulating access to subscriber specific data.
+
+    Un modelo para contener los detalles de acceder la información de una subscription.
+
+    Args:
+        local_db_conn: The connection used for local datastore queries, defaults to the global db_conn
+        hlr_db_path: The path of the sqlite3 database of the hlr, defaults to global config
+        vty: The provider of a vty connection to the operational HLR, defaults to obscvty
+        riak_client: The riak distributed hlr client, defaults to no riak connection
+        riak_timeout: The wait timeout for riak operations
+    """
+
+    def __init__(
+            self,
+            local_db_conn=db_conn,
+            hlr_db_path=sq_hlr_path,
+            vty=obscvty,
+            riak_client=None,
+            riak_timeout=RIAK_TIMEOUT
+    ):
+        self.local_db_conn = local_db_conn
+        self.hlr_db_path = hlr_db_path
+        self.vty = vty
+        self.riak_client = riak_client
+        self.riak_timeout = riak_timeout
+
     def get_balance(self, subscriber_number):
         # check if extension if yes add internal_prefix
         if len(subscriber_number) == 5:
             subscriber_number = config['internal_prefix']+subscriber_number
 
         try:
-            cur = db_conn.cursor()
+            cur = self.local_db_conn.cursor()
             cur.execute("SELECT balance FROM subscribers WHERE msisdn=%(number)s AND authorized=1", {'number': subscriber_number})
             balance = cur.fetchone()
             if balance != None:
@@ -67,9 +93,9 @@ class Subscriber:
         if len(subscriber_number) == 5:
             subscriber_number = config['internal_prefix']+subscriber_number
         try:
-            cur = db_conn.cursor()
+            cur = self.local_db_conn.cursor()
             cur.execute("UPDATE subscribers SET balance=%(balance)s WHERE msisdn=%(number)s", {'balance': Decimal(str(balance)), 'number': subscriber_number})
-            db_conn.commit()
+            self.local_db_conn.commit()
         except psycopg2.DatabaseError as e:
             cur.close()
             raise SubscriberException('Database error updating balance: %s' % e)
@@ -78,7 +104,7 @@ class Subscriber:
         # auth type 0 check subscriber without checking extension
         # auth type 1 check subscriber with checking extension
         try:
-            cur = db_conn.cursor()
+            cur = self.local_db_conn.cursor()
 
             if auth_type == 1:
                 # check if extension if yes add internal_prefix used to find the subscriber by the extension
@@ -96,7 +122,7 @@ class Subscriber:
 
     def get_local_msisdn(self, imsi):
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             sq_hlr_cursor.execute("SELECT extension FROM subscriber WHERE imsi=%(imsi)s AND lac > 0" % {'imsi': imsi})
             connected = sq_hlr_cursor.fetchall()
@@ -110,7 +136,7 @@ class Subscriber:
 
     def get_local_extension(self, imsi):
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             sq_hlr_cursor.execute("SELECT extension FROM subscriber WHERE imsi=%(imsi)s" % {'imsi': imsi})
             connected = sq_hlr_cursor.fetchone()
@@ -127,7 +153,7 @@ class Subscriber:
 
     def get_msisdn_from_imei(self, imei):
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             sql = ('SELECT Equipment.imei, Subscriber.imsi, '
                    'Subscriber.extension, Subscriber.updated '
@@ -147,7 +173,7 @@ class Subscriber:
 
     def get_imei_autocomplete(self, partial_imei=''):
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             sql = 'SELECT DISTINCT Equipment.imei FROM Equipment '
             if partial_imei != '':
@@ -170,7 +196,7 @@ class Subscriber:
 
     def get_all(self):
         try:
-            cur = db_conn.cursor()
+            cur = self.local_db_conn.cursor()
             cur.execute('SELECT * FROM subscribers')
             if cur.rowcount > 0:
                 sub = cur.fetchall()
@@ -184,7 +210,7 @@ class Subscriber:
 
     def get_all_notpaid(self):
         try:
-            cur = db_conn.cursor()
+            cur = self.local_db_conn.cursor()
             cur.execute('SELECT * FROM subscribers WHERE subscription_status = 0')
             if cur.rowcount > 0:
                 sub = cur.fetchall()
@@ -196,7 +222,7 @@ class Subscriber:
 
     def get_all_unauthorized(self):
         try:
-            cur = db_conn.cursor()
+            cur = self.local_db_conn.cursor()
             cur.execute('SELECT * FROM subscribers WHERE authorized = 0')
             if cur.rowcount > 0:
                 sub = cur.fetchall()
@@ -208,7 +234,7 @@ class Subscriber:
 
     def get_all_5digits(self):
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             sq_hlr_cursor.execute("SELECT id, extension FROM subscriber WHERE length(extension) = 5 AND extension != ?", [(config['smsc'])])
             extensions = sq_hlr_cursor.fetchall()
@@ -223,7 +249,7 @@ class Subscriber:
 
     def get_all_expire(self):
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             sq_hlr_cursor.execute("SELECT extension,expire_lu FROM subscriber WHERE length(extension) = 11")
             subscribers = sq_hlr_cursor.fetchall()
@@ -253,7 +279,7 @@ class Subscriber:
 
     def get_all_connected(self):
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             sq_hlr_cursor.execute("SELECT extension FROM subscriber WHERE extension LIKE ? AND lac > 0", [(config['internal_prefix']+'%')])
             connected = sq_hlr_cursor.fetchall()
@@ -269,7 +295,7 @@ class Subscriber:
 
     def get_all_disconnected(self):
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             sq_hlr_cursor.execute("SELECT extension FROM subscriber WHERE extension LIKE ? AND lac = 0", [(config['internal_prefix']+'%')])
             disconnected = sq_hlr_cursor.fetchall()
@@ -285,7 +311,7 @@ class Subscriber:
 
     def get_all_unregistered(self):
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             sq_hlr_cursor.execute("SELECT extension,imsi FROM subscriber WHERE length(extension) = 5 AND lac > 0")
             unregistered = sq_hlr_cursor.fetchall()
@@ -298,7 +324,7 @@ class Subscriber:
 
     def get_all_foreign(self):
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             sq_hlr_cursor.execute("SELECT extension,imsi FROM subscriber WHERE length(extension) = 11 AND extension NOT LIKE ? AND lac > 0", ( [config['internal_prefix']+'%']) )
             foreign = sq_hlr_cursor.fetchall()
@@ -310,7 +336,7 @@ class Subscriber:
 
     def get_all_inactive_since(self, days):
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             sq_hlr_cursor.execute("SELECT extension FROM subscriber WHERE (length(extension) = 5 OR extension NOT LIKE \"%(prefix)s%%\") AND extension != %(smsc)s AND updated < date('now', '-%(days)s days')" % {'days': days, 'smsc': config['smsc'], 'prefix': config['internal_prefix']})
             inactive = sq_hlr_cursor.fetchall()
@@ -323,7 +349,7 @@ class Subscriber:
 
     def get_all_inactive_roaming(self):
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             sq_hlr_cursor.execute("SELECT extension FROM subscriber WHERE length(extension) = 11 AND extension NOT LIKE '%s%%' AND lac = 0" % config['internal_prefix'])
             inactive = sq_hlr_cursor.fetchall()
@@ -335,7 +361,7 @@ class Subscriber:
 
     def get_all_inactive_roaming_since(self, days):
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             _sql=("SELECT extension FROM subscriber WHERE length(extension) = 11 AND extension NOT LIKE \"%(prefix)s%%\" AND lac = 0 AND updated < date('now', '-%(days)s days')" % {'days': days, 'prefix': config['internal_prefix']})
             sq_hlr_cursor.execute(_sql)
@@ -348,10 +374,10 @@ class Subscriber:
 
     def get_all_roaming_ours(self):
         try:
-            b = riak_client.bucket('hlr')
+            b = self.riak_client.bucket('hlr')
             b.set_property('r',1)
             # Lets do it by site.
-            #s = riak_client.bucket('sites')
+            #s = self.riak_client.bucket('sites')
             #s.set_property('r',1)
             #sites=s.get_keys()
             # We only actually care here about us
@@ -375,7 +401,7 @@ class Subscriber:
 
     def get_all_roaming(self):
         try:
-            results = riak_client.add('hlr').map(
+            results = self.riak_client.add('hlr').map(
                 """
             function(value, keyData, arg) {
                 if (value.values[0].metadata["X-Riak-Deleted"] === undefined) {
@@ -401,7 +427,7 @@ class Subscriber:
 
     def get_online(self):
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             sq_hlr_cursor.execute("SELECT count(*) FROM subscriber WHERE length(extension) = 11 AND lac > 0")
             connected = sq_hlr_cursor.fetchone()
@@ -413,7 +439,7 @@ class Subscriber:
 
     def get_offline(self):
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             sq_hlr_cursor.execute("SELECT count(*) FROM subscriber WHERE length(extension) = 11 AND lac = 0")
             offline = sq_hlr_cursor.fetchone()
@@ -425,7 +451,7 @@ class Subscriber:
 
     def get_roaming(self):
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             sq_hlr_cursor.execute("SELECT count(*) FROM subscriber WHERE length(extension) = 11 AND extension not LIKE ? AND lac > 0", ([config['internal_prefix']+'%']) )
             roaming = sq_hlr_cursor.fetchone()
@@ -437,7 +463,7 @@ class Subscriber:
 
     def get_unpaid_subscription(self):
         try:
-            cur = db_conn.cursor()
+            cur = self.local_db_conn.cursor()
             cur.execute('SELECT count(*) FROM subscribers WHERE subscription_status=0')
             sub = cur.fetchone()
             return sub[0]
@@ -446,7 +472,7 @@ class Subscriber:
 
     def get_paid_subscription(self):
         try:
-            cur = db_conn.cursor()
+            cur = self.local_db_conn.cursor()
             cur.execute('SELECT count(*) FROM subscribers WHERE subscription_status=1')
             sub = cur.fetchone()
             return sub[0]
@@ -455,7 +481,7 @@ class Subscriber:
 
     def get_unauthorized(self):
         try:
-            cur = db_conn.cursor()
+            cur = self.local_db_conn.cursor()
             cur.execute('SELECT count(*) FROM subscribers WHERE authorized=0')
             sub = cur.fetchone()
             return sub[0]
@@ -464,7 +490,7 @@ class Subscriber:
 
     def get(self, msisdn):
         try:
-            cur = db_conn.cursor()
+            cur = self.local_db_conn.cursor()
             cur.execute('SELECT * FROM subscribers WHERE msisdn=%(msisdn)s', {'msisdn': msisdn})
             if cur.rowcount > 0:
                 sub = cur.fetchone()
@@ -477,7 +503,7 @@ class Subscriber:
     def set_lac(self, imsi, lac):
         ''' I fixed this, but don't use it. Dont write to the sqlite3. '''
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             print('Update lac %s %s' % (imsi, lac))
             sq_hlr_cursor.execute('UPDATE subscriber SET lac=? WHERE imsi=?', (lac, imsi) )
@@ -539,7 +565,7 @@ class Subscriber:
     def _check_subscriber_exists(self, msisdn):
         try:
             api_log.debug('Check exists: %s' % msisdn)
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             sq_hlr_cursor.execute('SELECT extension FROM subscriber WHERE extension=?', [(config['internal_prefix'] + msisdn)])
             entry = sq_hlr_cursor.fetchall()
@@ -579,8 +605,8 @@ class Subscriber:
 
     def update_location(self, imsi, msisdn, ts_update=False):
         try:
-            # rk_hlr = riak_client.bucket('hlr')
-            # subscriber = rk_hlr.get(str(imsi), timeout=RIAK_TIMEOUT)
+            # rk_hlr = self.riak_client.bucket('hlr')
+            # subscriber = rk_hlr.get(str(imsi), timeout=self.riak_timeout)
             # roaming_log.info('RIAK: pushing %s, was %s' % (config['local_ip'],subscriber.data['current_bts']))
             # subscriber.data['current_bts'] = config['local_ip']
             # if ts_update:
@@ -601,20 +627,20 @@ class Subscriber:
 
     def _update_location_pghlr(self, subscriber):
         try:
-            cur = db_conn.cursor()
+            cur = self.local_db_conn.cursor()
             update_date = datetime.datetime.fromtimestamp(subscriber.data['updated'])
             cur.execute('UPDATE hlr SET msisdn=%(msisdn)s, home_bts=%(home_bts)s, current_bts=%(current_bts)s, '
                         'authorized=%(authorized)s, updated=%(updated)s WHERE msisdn=%(msisdn)s',
             {'msisdn': subscriber.data['msisdn'], 'home_bts': subscriber.data['home_bts'],
             'current_bts': subscriber.data['current_bts'],
             'authorized': subscriber.data['authorized'], 'updated': update_date})
-            db_conn.commit()
+            self.local_db_conn.commit()
         except psycopg2.DatabaseError as e:
             raise SubscriberException('Database error: %s' % e)
 
     def update_location_local_hlr(self, extension, current_bts = False):
         try:
-            cur = db_conn.cursor()
+            cur = self.local_db_conn.cursor()
             if current_bts is False:
                 cur.execute('UPDATE hlr SET current_bts=home_bts,'
                 ' updated=%(updated)s WHERE msisdn=%(msisdn)s',
@@ -623,7 +649,7 @@ class Subscriber:
                 cur.execute('UPDATE hlr SET current_bts=%(current_bts)s,'
                 ' updated=%(updated)s WHERE msisdn=%(msisdn)s',
                 {'msisdn': extension, 'current_bts': current_bts, 'updated': "now()"})
-            db_conn.commit()
+            self.local_db_conn.commit()
         except psycopg2.DatabaseError as e:
             raise SubscriberException('Database error: %s' % e)
 
@@ -642,11 +668,11 @@ class Subscriber:
 
         # PG_HLR delete subscriber
         try:
-            cur = db_conn.cursor()
+            cur = self.local_db_conn.cursor()
             cur.execute('DELETE FROM subscribers WHERE msisdn=%(msisdn)s', {'msisdn': msisdn})
             cur.execute('DELETE FROM hlr WHERE msisdn=%(msisdn)s', {'msisdn': msisdn})
             if cur.rowcount > 0:
-               db_conn.commit()
+               self.local_db_conn.commit()
             cur.close()
         except psycopg2.DatabaseError as e:
             cur.close()
@@ -691,22 +717,22 @@ class Subscriber:
                 
         # disable/enable subscriber on PG Subscribers
         try:
-            cur = db_conn.cursor()
+            cur = self.local_db_conn.cursor()
             cur.execute('UPDATE subscribers SET authorized=%(auth)s WHERE msisdn=%(msisdn)s', {'auth': auth, 'msisdn': msisdn})
             if cur.rowcount > 0:
-                db_conn.commit()
+                self.local_db_conn.commit()
             else:
-                db_conn.rollback()
+                self.local_db_conn.rollback()
                 raise SubscriberException('PG_HLR Subscriber not found')
         except psycopg2.DatabaseError as e:
-            db_conn.rollback()
+            self.local_db_conn.rollback()
             raise SubscriberException('PG_HLR error changing auth status: %s' % e)
 
         # try:
         #     now = int(time.time())
         #     imsi=self._get_imsi(msisdn)
-        #     rk_hlr = riak_client.bucket('hlr')
-        #     subscriber = rk_hlr.get(imsi, timeout=RIAK_TIMEOUT)
+        #     rk_hlr = self.riak_client.bucket('hlr')
+        #     subscriber = rk_hlr.get(imsi, timeout=self.riak_timeout)
         #     if subscriber.exists:
         #         subscriber.data['authorized'] = auth
         #         subscriber.data['updated'] = now
@@ -724,12 +750,12 @@ class Subscriber:
         # status 0 - subscription not paid
         # status 1 - subscription paid
         try:
-            cur = db_conn.cursor()
+            cur = self.local_db_conn.cursor()
             cur.execute('SELECT subscription_status FROM subscribers WHERE msisdn=%(msisdn)s', {'msisdn': msisdn})
             if cur.rowcount > 0:
                 prev_status = cur.fetchone()
             else:
-                db_conn.commit()
+                self.local_db_conn.commit()
                 raise SubscriberException('PG_HLR Subscriber not found')
             if prev_status[0] == 0 and status == 1:
                 cur.execute('UPDATE subscribers SET subscription_status=%(status)s,subscription_date = NOW() WHERE msisdn=%(msisdn)s',
@@ -738,9 +764,9 @@ class Subscriber:
                 cur.execute('UPDATE subscribers SET subscription_status=%(status)s WHERE msisdn=%(msisdn)s',
                             {'status': status, 'msisdn': msisdn})
             if cur.rowcount > 0:
-                db_conn.commit()
+                self.local_db_conn.commit()
             else:
-                db_conn.commit()
+                self.local_db_conn.commit()
                 raise SubscriberException('PG_HLR Subscriber not found')
         except psycopg2.DatabaseError as e:
             raise SubscriberException('PG_HLR error changing subscriber subscription status: %s' % e)
@@ -767,15 +793,15 @@ class Subscriber:
             _set = {}
             for i in updating:
                 _set[i] = params[i]
-            cur = db_conn.cursor()
+            cur = self.local_db_conn.cursor()
             sql_template = "UPDATE subscribers SET ({}) = %s WHERE msisdn = '{}'"
             sql = sql_template.format(', '.join(_set.keys()), msisdn)
             params = (tuple(_set.values()),)
             cur.execute(sql, params)
             if cur.rowcount > 0:
-                db_conn.commit()
+                self.local_db_conn.commit()
             else:
-                db_conn.commit()
+                self.local_db_conn.commit()
                 raise SubscriberException('PG_HLR No subscriber found')
         except psycopg2.DatabaseError as e:
             cur.execute("rollback")
@@ -783,7 +809,7 @@ class Subscriber:
 
     def get_imsi(self, msisdn):
         try:
-            sq_hlr = sqlite3.connect(sq_hlr_path)
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
             sq_hlr_cursor.execute('SELECT extension,imsi from subscriber WHERE extension=?', [(msisdn)])
             extension = sq_hlr_cursor.fetchone()
@@ -814,7 +840,7 @@ class Subscriber:
 
     def _provision_in_database(self, msisdn, name, balance, location='', equipment=''):
         try:
-            cur = db_conn.cursor()
+            cur = self.local_db_conn.cursor()
             cur.execute(
                 'INSERT INTO subscribers(msisdn,name,authorized,balance,subscription_status, '
                 'location, equipment) '
@@ -823,15 +849,15 @@ class Subscriber:
                   'location': location, 'equipment': equipment })
             cur.execute('INSERT INTO hlr(msisdn, home_bts, current_bts, authorized, updated) VALUES(%(msisdn)s, %(home_bts)s, %(current_bts)s, 1, now())',
             {'msisdn': msisdn, 'home_bts': config['local_ip'], 'current_bts': config['local_ip']})
-            db_conn.commit()
+            self.local_db_conn.commit()
         except psycopg2.DatabaseError as e:
-            db_conn.rollback()
+            self.local_db_conn.rollback()
             raise SubscriberException('PG_HLR error provisioning the subscriber: %s' % e)
 
     def _provision_in_distributed_hlr(self, imsi, msisdn):
         try:
             now = int(time.time())
-            rk_hlr = riak_client.bucket('hlr')
+            rk_hlr = self.riak_client.bucket('hlr')
             distributed_hlr = rk_hlr.new(imsi, data={"msisdn": msisdn, "home_bts": config['local_ip'], "current_bts": config['local_ip'], "authorized": 1, "updated": now})
             distributed_hlr.add_index('msisdn_bin', msisdn)
             distributed_hlr.add_index('modified_int', now)
@@ -843,8 +869,8 @@ class Subscriber:
 
     def _delete_in_distributed_hlr(self, msisdn):
         try:
-            rk_hlr = riak_client.bucket('hlr')
-            subscriber = rk_hlr.get_index('msisdn_bin', msisdn, timeout=RIAK_TIMEOUT)
+            rk_hlr = self.riak_client.bucket('hlr')
+            subscriber = rk_hlr.get_index('msisdn_bin', msisdn, timeout=self.riak_timeout)
             for key in subscriber.results:
                 rk_hlr.get(key).remove_indexes().delete()
 
@@ -855,7 +881,7 @@ class Subscriber:
 
     def delete_in_dhlr_imsi(self, imsi):
         try:
-            rk_hlr = riak_client.bucket('hlr')            
+            rk_hlr = self.riak_client.bucket('hlr')
             rk_hlr.delete(str(imsi))
         except riak.RiakError as e:
             raise SubscriberException('RK_HLR error: %s' % e)
