@@ -500,18 +500,6 @@ class Subscriber:
         except psycopg2.DatabaseError as e:
             raise SubscriberException('PG_HLR error getting subscriber: %s' % e)
 
-    def set_lac(self, imsi, lac):
-        ''' I fixed this, but don't use it. Dont write to the sqlite3. '''
-        try:
-            sq_hlr = sqlite3.connect(self.hlr_db_path)
-            sq_hlr_cursor = sq_hlr.cursor()
-            print('Update lac %s %s' % (imsi, lac))
-            sq_hlr_cursor.execute('UPDATE subscriber SET lac=? WHERE imsi=?', (lac, imsi) )
-            sq_hlr.commit()
-            sq_hlr.close()
-        except sqlite3.Error as e:
-            raise SubscriberException('SQ_HLR error updating subscriber lac: %s' % e.args[0])
-
     def expire_lu(self, msisdn):
         appstring = 'OpenBSC'
         appport = 4242
