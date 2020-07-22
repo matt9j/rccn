@@ -28,12 +28,13 @@ from __future__ import print_function
 import datetime
 import obscvty
 import psycopg2
+import riak
 import socket
 import sqlite3
 import time
 import unidecode
 
-from config import (db_conn, sq_hlr_path, config, api_log, roaming_log)
+from config import (db_conn, sq_hlr_path, config, api_log, roaming_log, RIAK_TIMEOUT)
 from decimal import Decimal
 from ESL import *
 
