@@ -36,6 +36,7 @@ import unidecode
 from config import (db_conn, sq_hlr_path, config, api_log, roaming_log, RIAK_TIMEOUT)
 from decimal import Decimal
 from modules.osmohlr import (OsmoHlrDb, OsmoHlrVty, OsmoHlrError)
+from modules.osmomsc import (OsmoMsc, OsmoMscError)
 from ESL import *
 
 
@@ -61,12 +62,15 @@ class Subscriber:
             local_db_conn=db_conn,
             hlr_db_path=sq_hlr_path,
             hlr_vty=OsmoHlrVty,
+            msc_ip="127.0.0.1",
+            msc_ctrl_port=4255,
             riak_client=None,
             riak_timeout=RIAK_TIMEOUT
     ):
         self._local_db_conn = local_db_conn
         self._osmo_hlr = OsmoHlrDb(hlr_db_path)
         self._osmo_hlr_vty = hlr_vty
+        self._osmo_msc = OsmoMsc(msc_ip, msc_ctrl_port)
         self._riak_client = riak_client
         self._riak_timeout = riak_timeout
 
@@ -233,21 +237,19 @@ class Subscriber:
             api_log.info('Exception: %s' % ex)
 
     def get_all_connected(self):
-        # TODO(matt9j) Migrate to the CTRL interface in the MSC/VLR
         try:
-            sq_hlr = sqlite3.connect(self.hlr_db_path)
-            sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute("SELECT extension FROM subscriber WHERE extension LIKE ? AND lac > 0", [(config['internal_prefix']+'%')])
-            connected = sq_hlr_cursor.fetchall()
-            if connected == []:
+            connected_subs = self._osmo_msc.get_active_subscribers()
+            if len(connected_subs) == 0:
                 raise SubscriberException('No connected subscribers found')
-            else:
-                sq_hlr.close()
-                return connected
 
-        except sqlite3.Error as e:
-            sq_hlr.close()
-            raise SubscriberException('SQ_HLR error: %s' % e.args[0])
+            # Reformat to msisdn list for API compatibility
+            msisdns = []
+            for connected_sub in connected_subs:
+                msisdns.append(connected_sub["msisdn"])
+
+            return msisdns
+        except OsmoMscError as e:
+            raise SubscriberException('MSC error: %s' % e.args[0])
 
     def get_all_disconnected(self):
         # TODO(matt9j) Currently unused
@@ -273,28 +275,36 @@ class Subscriber:
 
     def get_all_unregistered(self):
         try:
-            sq_hlr = sqlite3.connect(self.hlr_db_path)
-            sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute("SELECT extension,imsi FROM subscriber WHERE length(extension) = 5 AND lac > 0")
-            unregistered = sq_hlr_cursor.fetchall()
-            sq_hlr.close()
-            return unregistered
+            connected_subs = self._osmo_msc.get_active_subscribers()
 
-        except sqlite3.Error as e:
-            sq_hlr.close()
-            raise SubscriberException('SQ_HLR error: %s' % e.args[0])
+            # Reformat to msisdn list and only include 5 digit numbers for API compatibility
+            # An automatically assigned 5 digit msisdn signals that the subscriber is unregistered
+            msisdns = []
+            for connected_sub in connected_subs:
+                if len(connected_sub["msisdn"]) == 5:
+                    msisdns.append(connected_sub["msisdn"])
+
+            return msisdns
+        except OsmoMscError as e:
+            raise SubscriberException('MSC error: %s' % e.args[0])
 
     def get_all_foreign(self):
         try:
-            sq_hlr = sqlite3.connect(self.hlr_db_path)
-            sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute("SELECT extension,imsi FROM subscriber WHERE length(extension) = 11 AND extension NOT LIKE ? AND lac > 0", ( [config['internal_prefix']+'%']) )
-            foreign = sq_hlr_cursor.fetchall()
-            sq_hlr.close()
-            return foreign
-        except sqlite3.Error as e:
-            sq_hlr.close()
-            raise SubscriberException('SQ_HLR error: %s' % e.args[0])
+            connected_subs = self._osmo_msc.get_active_subscribers()
+
+            # Reformat to msisdn list and only include 11 digit numbers with
+            # noninternal prefixes for API compatibility. An automatically
+            # assigned 5 digit msisdn signals that the subscriber is
+            # unregistered.
+            msisdns = []
+            for connected_sub in connected_subs:
+                if ((len(connected_sub["msisdn"]) == 11) and
+                        (not connected_sub["msisdn"].startswith(config['internal_prefix']))):
+                    msisdns.append(connected_sub["msisdn"])
+
+            return msisdns
+        except OsmoMscError as e:
+            raise SubscriberException('MSC error: %s' % e.args[0])
 
     def get_all_inactive_since(self, days):
         try:
@@ -392,27 +402,39 @@ class Subscriber:
 
     def get_online(self):
         try:
-            sq_hlr = sqlite3.connect(self.hlr_db_path)
-            sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute("SELECT count(*) FROM subscriber WHERE length(extension) = 11 AND lac > 0")
-            connected = sq_hlr_cursor.fetchone()
-            sq_hlr.close()
-            return connected[0]
-        except sqlite3.Error as e:
-            sq_hlr.close()
-            raise SubscriberException('SQ_HLR error: %s' % e.args[0])
+            connected_subs = self._osmo_msc.get_active_subscribers()
+
+            # Only include 11 digit numbers for API compatibility.
+            count = 0
+            for connected_sub in connected_subs:
+                if len(connected_sub["msisdn"]) == 11:
+                    count += 1
+
+            return count
+        except OsmoMscError as e:
+            raise SubscriberException('MSC error: %s' % e.args[0])
 
     def get_offline(self):
+        # There is a race condition here since these values are coming from
+        # two different databases (postgres and the MSC) and an update could
+        # be in progress while the count is computed.
         try:
-            sq_hlr = sqlite3.connect(self.hlr_db_path)
-            sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute("SELECT count(*) FROM subscriber WHERE length(extension) = 11 AND lac = 0")
-            offline = sq_hlr_cursor.fetchone()
-            sq_hlr.close()
-            return offline[0]
-        except sqlite3.Error as e:
-            sq_hlr.close()
-            raise SubscriberException('SQ_HLR error: %s' % e.args[0])
+            cur = self._local_db_conn.cursor()
+            cur.execute(
+                'SELECT count(*) FROM subscribers WHERE length(msisdn) = 11'
+            )
+            if cur.rowcount > 0:
+                total_subscriber_count = cur.fetchone()[0]
+                cur.close()
+            else:
+                cur.close()
+                raise SubscriberException('PG_HLR No subscribers found')
+        except psycopg2.DatabaseError as e:
+            raise SubscriberException('PG_HLR error getting subscribers: %s' % e)
+
+        online_count = self.get_online()
+
+        return total_subscriber_count - online_count
 
     def get_roaming(self):
         # TODO(matt9j) count registered subscribers and filter by active
