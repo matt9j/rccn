@@ -58,6 +58,7 @@ CREATE TABLE subscribers (
 	subscription_status	smallint not null default 0,
         subscription_date       timestamp default current_timestamp,
 	location 	varchar,
+        equipment       varchar,
 	created		timestamp default current_timestamp
 );
 CREATE UNIQUE INDEX msisdn_index ON subscribers(msisdn);
