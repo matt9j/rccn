@@ -28,6 +28,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import obscvty
 import sqlite3
 
 
@@ -36,6 +37,11 @@ class OsmoHlrError(Exception):
 
 
 class OsmoHlrDb(object):
+    """Encapsulates low-level database transactions with an internal interface
+
+    The osmohlr db is not a stable interface, so updates may have to made to
+    support changes to the db structure over time.
+    """
 
     def __init__(self, hlr_db_path):
         self.hlr_db_path = hlr_db_path
@@ -128,3 +134,47 @@ class OsmoHlrDb(object):
         except sqlite3.Error as e:
             sq_hlr.close()
             raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
+
+
+class OsmoHlrVty(object):
+    """Encapsulates low-level vty operations with an internal interface
+
+    The VTY itself is not a stable interface, so changes and updates may need
+    to happen here with new released versions of the HLR.
+    """
+    def __init__(self, vty=obscvty):
+        self._vty = vty
+        self._appstring = "OsmoHLR"
+        self._ip = "127.0.0.1"
+        self._vty_port = 4258
+
+    def show_by_msisdn(self, msisdn):
+        vty = self._vty.VTYInteract(self._appstring, self._ip, self._vty_port)
+        cmd = 'subscriber msisdn {} show'.format(msisdn)
+        subscriber_data = vty.command(cmd, close=True)
+        return subscriber_data
+
+    def update_msisdn(self, current_msisdn, new_msisdn):
+        vty = self._vty.VTYInteract(self._appstring, self._ip, self._vty_port)
+        cmd = 'subscriber msisdn {} update msisdn {}'.format(
+            current_msisdn, new_msisdn
+        )
+        vty.enabled_command(cmd, close=True)
+
+    def delete_by_msisdn(self, msisdn):
+        vty = self._vty.VTYInteract(self._appstring, self._ip, self._vty_port)
+        cmd = 'subscriber msisdn {} delete'.format(msisdn)
+        vty.enabled_command(cmd, close=True)
+
+    def enable_access_by_msisdn(self, msisdn):
+        self._set_access_by_msisdn(msisdn, "cs+ps")
+
+    def disable_access_by_msisdn(self, msisdn):
+        self._set_access_by_msisdn(msisdn, "none")
+
+    def _set_access_by_msisdn(self, msisdn, access_string):
+        vty = self._vty.VTYInteract(self._appstring, self._ip, self._vty_port)
+        cmd = 'subscriber msisdn {} update network-access-mode {}'.format(
+            msisdn, access_string
+        )
+        vty.enabled_command(cmd, close=True)
