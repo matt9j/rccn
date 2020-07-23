@@ -26,7 +26,6 @@ from __future__ import division
 from __future__ import print_function
 
 import datetime
-import obscvty
 import psycopg2
 import riak
 import socket
@@ -36,7 +35,7 @@ import unidecode
 
 from config import (db_conn, sq_hlr_path, config, api_log, roaming_log, RIAK_TIMEOUT)
 from decimal import Decimal
-from modules.osmohlr import (OsmoHlrDb, OsmoHlrError)
+from modules.osmohlr import (OsmoHlrDb, OsmoHlrVty, OsmoHlrError)
 from ESL import *
 
 
@@ -61,15 +60,15 @@ class Subscriber:
             self,
             local_db_conn=db_conn,
             hlr_db_path=sq_hlr_path,
-            vty=obscvty,
+            hlr_vty=OsmoHlrVty,
             riak_client=None,
             riak_timeout=RIAK_TIMEOUT
     ):
-        self.local_db_conn = local_db_conn
-        self.osmo_hlr = OsmoHlrDb(hlr_db_path)
-        self.vty = vty
-        self.riak_client = riak_client
-        self.riak_timeout = riak_timeout
+        self._local_db_conn = local_db_conn
+        self._osmo_hlr = OsmoHlrDb(hlr_db_path)
+        self._osmo_hlr_vty = hlr_vty
+        self._riak_client = riak_client
+        self._riak_timeout = riak_timeout
 
     def get_balance(self, subscriber_number):
         # check if extension if yes add internal_prefix
@@ -472,20 +471,21 @@ class Subscriber:
             raise SubscriberException('PG_HLR error getting subscriber: %s' % e)
 
     def expire_lu(self, msisdn):
-        appstring = 'OpenBSC'
-        appport = 4242
-        try:
-            vty = obscvty.VTYInteract(appstring, '127.0.0.1', appport)
-            cmd = 'enable'
-            vty.command(cmd)
-            cmd = 'subscriber extension %s expire' % (msisdn)
-            ret = vty.command(cmd)
-            api_log.debug('VTY: %s' % ret)
-            if ret:
-                raise SubscriberException('VTY: %s' % ret)
-        except IOError as e:
-            api_log.debug('Exception in expire_lu! %s' % e)
-            pass
+        raise NotImplementedError("Nitb migration no LU expiration is split components")
+        # appstring = 'OpenBSC'
+        # appport = 4242
+        # try:
+        #     vty = obscvty.VTYInteract(appstring, '127.0.0.1', appport)
+        #     cmd = 'enable'
+        #     vty.command(cmd)
+        #     cmd = 'subscriber extension %s expire' % (msisdn)
+        #     ret = vty.command(cmd)
+        #     api_log.debug('VTY: %s' % ret)
+        #     if ret:
+        #         raise SubscriberException('VTY: %s' % ret)
+        # except IOError as e:
+        #     api_log.debug('Exception in expire_lu! %s' % e)
+        #     pass
 
     def add(self, msisdn, name, balance, location='', equipment=''):
         if len(msisdn) == 15:
@@ -619,14 +619,8 @@ class Subscriber:
 
     def delete(self, msisdn):
         subscriber_number = msisdn[-5:]
-        appstring = 'OpenBSC'
-        appport = 4242
         try:
-            vty = obscvty.VTYInteract(appstring, '127.0.0.1', appport)
-            cmd = 'enable'
-            vty.command(cmd)
-            cmd = 'subscriber extension %s extension %s' % (msisdn, subscriber_number)
-            vty.command(cmd)
+            self._osmo_hlr_vty.update_msisdn(msisdn, subscriber_number)
         except:
             pass
 
@@ -653,40 +647,21 @@ class Subscriber:
         self._delete_in_distributed_hlr(msisdn)
 
     def purge(self, msisdn):
-        # delete subscriber on the HLR sqlite DB
-        appstring = 'OpenBSC'
-        appport = 4242
-        vty = obscvty.VTYInteract(appstring, '127.0.0.1', appport)
-        cmd = 'enable'
-        vty.command(cmd)
-        cmd = 'subscriber extension %s delete' % msisdn
-        vty.command(cmd)
+        self._osmo_hlr_vty.delete_by_msisdn(msisdn)
 
     def print_vty_hlr_info(self, msisdn):
-        appstring = 'OpenBSC'
-        appport = 4242
-        vty = obscvty.VTYInteract(appstring, '127.0.0.1', appport)
-        cmd = 'enable'
-        vty.command(cmd)
-        cmd = 'show subscriber extension %s' % msisdn
-        return vty.command(cmd)    
+        return self._osmo_hlr_vty.show_by_msisdn(msisdn)
 
     def authorized(self, msisdn, auth):
         # auth 0 subscriber disabled
         # auth 1 subscriber enabled
-        # disable/enable subscriber in Osmo
-        try:
-            appstring = 'OpenBSC'
-            appport = 4242
-            vty = obscvty.VTYInteract(appstring, '127.0.0.1', appport)
-            cmd = 'enable'
-            vty.command(cmd)
-            cmd = 'subscriber extension %s authorized %s' % (msisdn, auth)
-            vty.command(cmd)
-        except:
-            print("VTY Exception")
-            pass
-                
+        if auth == 0:
+            self._osmo_hlr_vty.disable_access_by_msisdn(msisdn)
+        elif auth == 1:
+            self._osmo_hlr_vty.enable_access_by_msisdn(msisdn)
+        else:
+            raise SubscriberException("Unknown auth mode '{}'".format(auth))
+
         # disable/enable subscriber on PG Subscribers
         try:
             cur = self.local_db_conn.cursor()
@@ -758,18 +733,8 @@ class Subscriber:
         updating = [k for k, v in params.items() if v != ""]
         updating.remove('self')
         updating.remove('msisdn')
-        # edit subscriber data in the Osmo
-        try:
-            appstring = 'OpenBSC'
-            appport = 4242
-            vty = obscvty.VTYInteract(appstring, '127.0.0.1', appport)
-            cmd = 'enable'
-            vty.command(cmd)
-            cmd = 'subscriber extension %s name %s' % (msisdn, name)
-            vty.command(cmd)
-        except Exception as e:
-            raise SubscriberException('VTY error updating subscriber data: %s' % e.args[0])
-        
+        # TODO(matt9j) The name parameter is now unused in the osmoHLR
+
         # PG_HLR update subscriber data
         try:
             _set = {}
@@ -797,20 +762,11 @@ class Subscriber:
         return str(imsi)
 
     def _authorize_subscriber_in_local_hlr(self, msisdn, new_msisdn, name):
+        # TODO(matt9j) The name parameter is now unused in the osmoHLR
         try:
             api_log.debug('Auth Subscriber in Local HLR: %s, %s' % (msisdn, new_msisdn) )
-            appstring = 'OpenBSC'
-            appport = 4242
-            vty = obscvty.VTYInteract(appstring, '127.0.0.1', appport)
-            cmd = 'enable'
-            vty.command(cmd)
-            cmd = 'subscriber extension %s extension %s' % (msisdn, new_msisdn)
-            ret=vty.command(cmd)
-            api_log.debug('VTY: %s' % ret)
-            cmd = 'subscriber extension %s authorized 1' % new_msisdn
-            vty.command(cmd)
-            cmd = 'subscriber extension %s name %s' % (new_msisdn, unidecode(name))
-            vty.command(cmd)
+            self._osmo_hlr_vty.update_msisdn(msisdn, new_msisdn)
+            self._osmo_hlr_vty.enable_access_by_msisdn(new_msisdn)
         except Exception as e:
             raise SubscriberException('SQ_HLR error provisioning the subscriber %s' % e)
 
