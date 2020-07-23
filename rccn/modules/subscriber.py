@@ -76,7 +76,7 @@ class Subscriber:
             subscriber_number = config['internal_prefix']+subscriber_number
 
         try:
-            cur = self.local_db_conn.cursor()
+            cur = self._local_db_conn.cursor()
             cur.execute("SELECT balance FROM subscribers WHERE msisdn = %(number)s AND authorized=1", {'number': subscriber_number})
             balance = cur.fetchone()
             if balance != None:
@@ -94,9 +94,9 @@ class Subscriber:
         if len(subscriber_number) == 5:
             subscriber_number = config['internal_prefix']+subscriber_number
         try:
-            cur = self.local_db_conn.cursor()
+            cur = self._local_db_conn.cursor()
             cur.execute("UPDATE subscribers SET balance = %(balance)s WHERE msisdn = %(number)s", {'balance': Decimal(str(balance)), 'number': subscriber_number})
-            self.local_db_conn.commit()
+            self._local_db_conn.commit()
         except psycopg2.DatabaseError as e:
             cur.close()
             raise SubscriberException('Database error updating balance: %s' % e)
@@ -105,7 +105,7 @@ class Subscriber:
         # auth type 0 check subscriber without checking extension
         # auth type 1 check subscriber with checking extension
         try:
-            cur = self.local_db_conn.cursor()
+            cur = self._local_db_conn.cursor()
 
             if auth_type == 1:
                 # check if extension if yes add internal_prefix used to find the subscriber by the extension
@@ -124,28 +124,28 @@ class Subscriber:
     def get_local_msisdn(self, imsi):
         # TODO(matt9j) Check for duplication
         try:
-            return self.osmo_hlr.get_msisdn_from_imsi(imsi)
+            return self._osmo_hlr.get_msisdn_from_imsi(imsi)
         except OsmoHlrError as e:
             raise SubscriberException("OsmoHlr error: {}".format(e.args[0]))
 
     def get_local_extension(self, imsi):
         # TODO(matt9j) Check for duplication
         try:
-            return self.osmo_hlr.get_msisdn_from_imsi(imsi)
+            return self._osmo_hlr.get_msisdn_from_imsi(imsi)
         except OsmoHlrError as e:
             raise SubscriberException("OsmoHlr error: {}".format(e.args[0]))
 
     def get_imei_autocomplete(self, partial_imei=''):
         try:
             if partial_imei != '':
-                imeis = self.osmo_hlr.get_matching_partial_imeis(partial_imei)
+                imeis = self._osmo_hlr.get_matching_partial_imeis(partial_imei)
             else:
-                imeis = self.osmo_hlr.get_all_imeis()
+                imeis = self._osmo_hlr.get_all_imeis()
 
             if len(imeis) == 0:
                 return []
             if len(imeis) == 1:
-                data = self.osmo_hlr.get_msisdn_from_imei(imeis[0][0])
+                data = self._osmo_hlr.get_msisdn_from_imei(imeis[0][0])
                 return data
             else:
                 return imeis
@@ -154,7 +154,7 @@ class Subscriber:
 
     def get_all(self):
         try:
-            cur = self.local_db_conn.cursor()
+            cur = self._local_db_conn.cursor()
             cur.execute('SELECT * FROM subscribers')
             if cur.rowcount > 0:
                 sub = cur.fetchall()
@@ -168,7 +168,7 @@ class Subscriber:
 
     def get_all_notpaid(self):
         try:
-            cur = self.local_db_conn.cursor()
+            cur = self._local_db_conn.cursor()
             cur.execute('SELECT * FROM subscribers WHERE subscription_status = 0')
             if cur.rowcount > 0:
                 sub = cur.fetchall()
@@ -180,7 +180,7 @@ class Subscriber:
 
     def get_all_unauthorized(self):
         try:
-            cur = self.local_db_conn.cursor()
+            cur = self._local_db_conn.cursor()
             cur.execute('SELECT * FROM subscribers WHERE authorized = 0')
             if cur.rowcount > 0:
                 sub = cur.fetchall()
@@ -192,7 +192,7 @@ class Subscriber:
 
     def get_all_5digits(self):
         try:
-            msisdns = self.osmo_hlr.get_all_5digit_msisdns()
+            msisdns = self._osmo_hlr.get_all_5digit_msisdns()
             msisdns.remove(config['smsc'])
 
             if len(msisdns) == 0:
@@ -233,6 +233,7 @@ class Subscriber:
             api_log.info('Exception: %s' % ex)
 
     def get_all_connected(self):
+        # TODO(matt9j) Migrate to the CTRL interface in the MSC/VLR
         try:
             sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
@@ -338,10 +339,10 @@ class Subscriber:
     def get_all_roaming_ours(self):
         # TODO(matt9j) Currently unused.
         try:
-            b = self.riak_client.bucket('hlr')
+            b = self._riak_client.bucket('hlr')
             b.set_property('r',1)
             # Lets do it by site.
-            #s = self.riak_client.bucket('sites')
+            #s = self._riak_client.bucket('sites')
             #s.set_property('r',1)
             #sites=s.get_keys()
             # We only actually care here about us
@@ -365,7 +366,7 @@ class Subscriber:
 
     def get_all_roaming(self):
         try:
-            results = self.riak_client.add('hlr').map(
+            results = self._riak_client.add('hlr').map(
                 """
             function(value, keyData, arg) {
                 if (value.values[0].metadata["X-Riak-Deleted"] === undefined) {
@@ -433,7 +434,7 @@ class Subscriber:
 
     def get_unpaid_subscription(self):
         try:
-            cur = self.local_db_conn.cursor()
+            cur = self._local_db_conn.cursor()
             cur.execute('SELECT count(*) FROM subscribers WHERE subscription_status=0')
             sub = cur.fetchone()
             return sub[0]
@@ -442,7 +443,7 @@ class Subscriber:
 
     def get_paid_subscription(self):
         try:
-            cur = self.local_db_conn.cursor()
+            cur = self._local_db_conn.cursor()
             cur.execute('SELECT count(*) FROM subscribers WHERE subscription_status=1')
             sub = cur.fetchone()
             return sub[0]
@@ -451,7 +452,7 @@ class Subscriber:
 
     def get_unauthorized(self):
         try:
-            cur = self.local_db_conn.cursor()
+            cur = self._local_db_conn.cursor()
             cur.execute('SELECT count(*) FROM subscribers WHERE authorized=0')
             sub = cur.fetchone()
             return sub[0]
@@ -460,7 +461,7 @@ class Subscriber:
 
     def get(self, msisdn):
         try:
-            cur = self.local_db_conn.cursor()
+            cur = self._local_db_conn.cursor()
             cur.execute('SELECT * FROM subscribers WHERE msisdn = %(msisdn)s', {'msisdn': msisdn})
             if cur.rowcount > 0:
                 sub = cur.fetchone()
@@ -525,7 +526,7 @@ class Subscriber:
         try:
             api_log.debug('Check exists: %s' % msisdn)
             full_msisdn = config['internal_prefix'] + msisdn
-            entry = self.osmo_hlr.get_imsi_from_msisdn(full_msisdn)
+            entry = self._osmo_hlr.get_imsi_from_msisdn(full_msisdn)
             if len(entry) <= 0:
                 return False
             return True
@@ -561,8 +562,8 @@ class Subscriber:
 
     def update_location(self, imsi, msisdn, ts_update=False):
         try:
-            rk_hlr = self.riak_client.bucket('hlr')
-            subscriber = rk_hlr.get(str(imsi), timeout=self.riak_timeout)
+            rk_hlr = self._riak_client.bucket('hlr')
+            subscriber = rk_hlr.get(str(imsi), timeout=self._riak_timeout)
             roaming_log.info('RIAK: pushing %s, was %s' % (config['local_ip'],subscriber.data['current_bts']))
             subscriber.data['current_bts'] = config['local_ip']
             if ts_update:
@@ -583,7 +584,7 @@ class Subscriber:
 
     def _update_location_pghlr(self, subscriber):
         try:
-            cur = self.local_db_conn.cursor()
+            cur = self._local_db_conn.cursor()
             update_date = datetime.datetime.fromtimestamp(subscriber.data['updated'])
             cur.execute(
                 'UPDATE hlr SET msisdn = %(msisdn)s, home_bts = %(home_bts)s, current_bts = %(current_bts)s, '
@@ -596,13 +597,13 @@ class Subscriber:
                     'updated': update_date
                 }
             )
-            self.local_db_conn.commit()
+            self._local_db_conn.commit()
         except psycopg2.DatabaseError as e:
             raise SubscriberException('Database error: %s' % e)
 
     def update_location_local_hlr(self, extension, current_bts=False):
         try:
-            cur = self.local_db_conn.cursor()
+            cur = self._local_db_conn.cursor()
             if current_bts is False:
                 cur.execute(
                     'UPDATE hlr SET current_bts = home_bts, updated = %(updated)s WHERE msisdn = %(msisdn)s',
@@ -613,7 +614,7 @@ class Subscriber:
                     'UPDATE hlr SET current_bts = %(current_bts)s, updated = %(updated)s WHERE msisdn = %(msisdn)s',
                     {'msisdn': extension, 'current_bts': current_bts, 'updated': "now()"}
                 )
-            self.local_db_conn.commit()
+            self._local_db_conn.commit()
         except psycopg2.DatabaseError as e:
             raise SubscriberException('Database error: %s' % e)
 
@@ -626,7 +627,7 @@ class Subscriber:
 
         # PG_HLR delete subscriber
         try:
-            cur = self.local_db_conn.cursor()
+            cur = self._local_db_conn.cursor()
             cur.execute(
                 'DELETE FROM subscribers WHERE msisdn = %(msisdn)s',
                 {'msisdn': msisdn}
@@ -638,7 +639,7 @@ class Subscriber:
 
             # TODO(matt9j) This might leak a transaction if the subscriber is not in the hlr
             if cur.rowcount > 0:
-               self.local_db_conn.commit()
+               self._local_db_conn.commit()
             cur.close()
         except psycopg2.DatabaseError as e:
             cur.close()
@@ -664,25 +665,25 @@ class Subscriber:
 
         # disable/enable subscriber on PG Subscribers
         try:
-            cur = self.local_db_conn.cursor()
+            cur = self._local_db_conn.cursor()
             cur.execute(
                 'UPDATE subscribers SET authorized = %(auth)s WHERE msisdn = %(msisdn)s',
                 {'auth': auth, 'msisdn': msisdn}
             )
             if cur.rowcount > 0:
-                self.local_db_conn.commit()
+                self._local_db_conn.commit()
             else:
-                self.local_db_conn.rollback()
+                self._local_db_conn.rollback()
                 raise SubscriberException('PG_HLR Subscriber not found')
         except psycopg2.DatabaseError as e:
-            self.local_db_conn.rollback()
+            self._local_db_conn.rollback()
             raise SubscriberException('PG_HLR error changing auth status: %s' % e)
 
         # try:
         #     now = int(time.time())
         #     imsi=self._get_imsi(msisdn)
-        #     rk_hlr = self.riak_client.bucket('hlr')
-        #     subscriber = rk_hlr.get(imsi, timeout=self.riak_timeout)
+        #     rk_hlr = self._riak_client.bucket('hlr')
+        #     subscriber = rk_hlr.get(imsi, timeout=self._riak_timeout)
         #     if subscriber.exists:
         #         subscriber.data['authorized'] = auth
         #         subscriber.data['updated'] = now
@@ -700,7 +701,7 @@ class Subscriber:
         # status 0 - subscription not paid
         # status 1 - subscription paid
         try:
-            cur = self.local_db_conn.cursor()
+            cur = self._local_db_conn.cursor()
             cur.execute(
                 'SELECT subscription_status FROM subscribers WHERE msisdn = %(msisdn)s',
                 {'msisdn': msisdn}
@@ -708,7 +709,7 @@ class Subscriber:
             if cur.rowcount > 0:
                 prev_status = cur.fetchone()
             else:
-                self.local_db_conn.commit()
+                self._local_db_conn.commit()
                 raise SubscriberException('PG_HLR Subscriber not found')
             if prev_status[0] == 0 and status == 1:
                 cur.execute(
@@ -721,9 +722,9 @@ class Subscriber:
                     {'status': status, 'msisdn': msisdn}
                 )
             if cur.rowcount > 0:
-                self.local_db_conn.commit()
+                self._local_db_conn.commit()
             else:
-                self.local_db_conn.commit()
+                self._local_db_conn.commit()
                 raise SubscriberException('PG_HLR Subscriber not found')
         except psycopg2.DatabaseError as e:
             raise SubscriberException('PG_HLR error changing subscriber subscription status: %s' % e)
@@ -740,15 +741,15 @@ class Subscriber:
             _set = {}
             for i in updating:
                 _set[i] = params[i]
-            cur = self.local_db_conn.cursor()
+            cur = self._local_db_conn.cursor()
             sql_template = "UPDATE subscribers SET ({}) = %s WHERE msisdn = '{}'"
             sql = sql_template.format(', '.join(_set.keys()), msisdn)
             params = (tuple(_set.values()),)
             cur.execute(sql, params)
             if cur.rowcount > 0:
-                self.local_db_conn.commit()
+                self._local_db_conn.commit()
             else:
-                self.local_db_conn.commit()
+                self._local_db_conn.commit()
                 raise SubscriberException('PG_HLR No subscriber found')
         except psycopg2.DatabaseError as e:
             cur.execute("rollback")
@@ -756,7 +757,7 @@ class Subscriber:
 
     def get_imsi(self, msisdn):
         try:
-            imsi = self.osmo_hlr.get_imsi_from_msisdn(msisdn)
+            imsi = self._osmo_hlr.get_imsi_from_msisdn(msisdn)
         except OsmoHlrError as e:
             raise SubscriberException('SQ_HLR error: %s' % e.args[0])
         return str(imsi)
@@ -772,7 +773,7 @@ class Subscriber:
 
     def _provision_in_database(self, msisdn, name, balance, location='', equipment=''):
         try:
-            cur = self.local_db_conn.cursor()
+            cur = self._local_db_conn.cursor()
             cur.execute(
                 'INSERT INTO subscribers(msisdn,name,authorized,balance,subscription_status, '
                 'location, equipment) '
@@ -793,16 +794,16 @@ class Subscriber:
                     'current_bts': config['local_ip']
                 }
             )
-            self.local_db_conn.commit()
+            self._local_db_conn.commit()
         except psycopg2.DatabaseError as e:
-            self.local_db_conn.rollback()
+            self._local_db_conn.rollback()
             raise SubscriberException('PG_HLR error provisioning the subscriber: %s' % e)
 
     def _provision_in_distributed_hlr(self, imsi, msisdn):
         # TODO(matt9j) Used externally
         try:
             now = int(time.time())
-            rk_hlr = self.riak_client.bucket('hlr')
+            rk_hlr = self._riak_client.bucket('hlr')
             distributed_hlr = rk_hlr.new(imsi, data={"msisdn": msisdn, "home_bts": config['local_ip'], "current_bts": config['local_ip'], "authorized": 1, "updated": now})
             distributed_hlr.add_index('msisdn_bin', msisdn)
             distributed_hlr.add_index('modified_int', now)
@@ -814,8 +815,8 @@ class Subscriber:
 
     def _delete_in_distributed_hlr(self, msisdn):
         try:
-            rk_hlr = self.riak_client.bucket('hlr')
-            subscriber = rk_hlr.get_index('msisdn_bin', msisdn, timeout=self.riak_timeout)
+            rk_hlr = self._riak_client.bucket('hlr')
+            subscriber = rk_hlr.get_index('msisdn_bin', msisdn, timeout=self._riak_timeout)
             for key in subscriber.results:
                 rk_hlr.get(key).remove_indexes().delete()
 
@@ -827,7 +828,7 @@ class Subscriber:
     def delete_in_dhlr_imsi(self, imsi):
         # TODO(matt9j) Currently unused.
         try:
-            rk_hlr = self.riak_client.bucket('hlr')
+            rk_hlr = self._riak_client.bucket('hlr')
             rk_hlr.delete(str(imsi))
         except riak.RiakError as e:
             raise SubscriberException('RK_HLR error: %s' % e)
