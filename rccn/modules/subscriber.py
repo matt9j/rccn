@@ -47,7 +47,7 @@ class SubscriberException(Exception):
 class Subscriber:
     """Model encapsulating access to subscriber specific data.
 
-    Un modelo para contener los detalles de acceder la información de una subscription.
+    Un modelo para contener los detalles de acceder la informacion de una subscription.
 
     Args:
         local_db_conn: The connection used for local datastore queries, defaults to the global db_conn
