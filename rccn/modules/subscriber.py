@@ -226,6 +226,8 @@ class Subscriber:
             _sip_connected = []
             con = ESLconnection("127.0.0.1", "8021", "ClueCon")
             e = con.api("show registrations")
+            if e is None:
+                return 0
             reg=e.getBody()
             lines=reg.split('\n')
             for line in lines[1:]:
@@ -245,7 +247,9 @@ class Subscriber:
             # Reformat to msisdn list for API compatibility
             msisdns = []
             for connected_sub in connected_subs:
-                msisdns.append(connected_sub["msisdn"])
+                # The RAI PhP code expects a doubly nested array. See
+                # rai/modules/subscriber.php:113
+                msisdns.append([connected_sub["msisdn"]])
 
             return msisdns
         except OsmoMscError as e:
@@ -549,9 +553,7 @@ class Subscriber:
             api_log.debug('Check exists: %s' % msisdn)
             full_msisdn = config['internal_prefix'] + msisdn
             entry = self._osmo_hlr.get_imsi_from_msisdn(full_msisdn)
-            if len(entry) <= 0:
-                return False
-            return True
+            return entry is not None
         except OsmoHlrError as e:
             raise SubscriberException('SQ_HLR error sub: %s' % e.args[0])
 
