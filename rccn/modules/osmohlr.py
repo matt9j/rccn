@@ -57,10 +57,13 @@ class OsmoHlrDb(object):
             )
             connected = sq_hlr_cursor.fetchall()
             sq_hlr.close()
-            if len(connected) <= 0:
+            if len(connected) == 0:
                 raise OsmoHlrError('imsi %s not found' % imsi)
-            # TODO(matt9j) Loss of generality here could hide consistency errors
-            return connected[0]
+            if len(connected) > 1:
+                # TODO(matt9j) Loss of generality here could hide consistency
+                #  errors. Add a warning log at a minimum.
+                pass
+            return connected[0][0]
         except sqlite3.Error as e:
             sq_hlr.close()
             raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
@@ -74,12 +77,12 @@ class OsmoHlrDb(object):
             sq_hlr_cursor = sq_hlr.cursor()
             sq_hlr_cursor.execute('SELECT imsi from subscriber WHERE msisdn=?', [msisdn])
             imsi = sq_hlr_cursor.fetchone()
-            if imsi is None:
-                raise OsmoHlrError('MSISDN not found in the OsmoHLR')
+            if imsi is not None:
+                imsi = imsi[0]
         except sqlite3.Error as e:
             raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
 
-        return str(imsi)
+        return imsi
 
     def get_msisdn_from_imei(self, imei):
         try:
