@@ -31,7 +31,7 @@ import riak
 import socket
 import sqlite3
 import time
-import unidecode
+from unidecode import unidecode
 
 from config import (db_conn, sq_hlr_path, config, api_log, roaming_log, RIAK_TIMEOUT)
 from decimal import Decimal
