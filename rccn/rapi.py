@@ -39,7 +39,6 @@ from corepost.web import RESTResource, route, Http
 from config import (api_log, PGEncoder, config, db_conn, use_kannel)
 from modules.subscriber import (Subscriber, SubscriberException)
 from modules.reseller import (Reseller, ResellerException)
-from modules.numbering import (Numbering, NumberingException)
 from modules.credit import (Credit, CreditException)
 from modules.statistics import (
     CallsStatistics,
@@ -218,7 +217,7 @@ class SubscriberRESTService:
         try:
             sub = Subscriber()
             data = json.dumps(sub.get_imei_autocomplete())
-        except NumberingException as e:
+        except SubscriberException as e:
             data = {'status': 'failed', 'error': str(e)}
         return data
 
@@ -228,7 +227,7 @@ class SubscriberRESTService:
         try:
             sub = Subscriber()
             data = json.dumps(sub.get_imei_autocomplete(partial_imei))
-        except NumberingException as e:
+        except SubscriberException as e:
             data = {'status': 'failed', 'error': str(e)}
         return data
 
