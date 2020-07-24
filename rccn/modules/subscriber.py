@@ -69,7 +69,7 @@ class Subscriber:
     ):
         self._local_db_conn = local_db_conn
         self._osmo_hlr = OsmoHlrDb(hlr_db_path)
-        self._osmo_hlr_vty = hlr_vty
+        self._osmo_hlr_vty = hlr_vty()
         self._osmo_msc = OsmoMsc(msc_ip, msc_ctrl_port)
         self._riak_client = riak_client
         self._riak_timeout = riak_timeout
