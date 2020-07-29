@@ -197,12 +197,15 @@ class Subscriber:
     def get_all_5digits(self):
         try:
             msisdns = self._osmo_hlr.get_all_5digit_msisdns()
-            msisdns.remove(config['smsc'])
+            results = []
+            for msisdn_tuple in msisdns:
+                if msisdn_tuple[1] != config['smsc']:
+                    results.append(msisdn_tuple)
 
             if len(msisdns) == 0:
                 raise SubscriberException('No extensions found')
             else:
-                return msisdns
+                return results
         except OsmoHlrError as e:
             raise SubscriberException('SQ_HLR error: %s' % e.args[0])
 
