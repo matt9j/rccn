@@ -36,6 +36,7 @@ from __future__ import print_function
 
 import socket
 from osmopy.osmo_ipa import Ctrl
+from osmopy import obscvty
 
 
 class OsmoMscError(Exception):
@@ -48,9 +49,11 @@ class OsmoMsc(object):
     This class is synchronous and calls to methods may block for network
     communication.
     """
-    def __init__(self, ip_address, ctrl_port):
+    def __init__(self, ip_address, ctrl_port, vty_port):
         self._ip_address = ip_address
         self._ctrl_port = ctrl_port
+        self._vty_port = vty_port
+        self._vty_appstring = "OsmoMSC"
 
     def get_active_subscribers(self):
         try:
@@ -69,6 +72,17 @@ class OsmoMsc(object):
             subscriber_list.append({"imsi": imsi, "msisdn": msisdn})
 
         return subscriber_list
+
+    def expire_subscriber_by_msisdn(self, msisdn):
+        try:
+            vty = obscvty.VTYInteract(self._vty_appstring, self._ip_address, self._vty_port)
+            cmd = "subscriber extension {} expire".format(msisdn)
+            return_text = vty.enabled_command(cmd, close=True)
+            if return_text:
+                raise OsmoMscError("VTY cmd: `{}` returned: `{}`".format(cmd, return_text))
+        except IOError:
+            # TODO(matt9j) Log that communication failed with the MSC.
+            pass
 
 
 class CtrlNoResponseError(RuntimeError):
