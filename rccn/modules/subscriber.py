@@ -64,13 +64,14 @@ class Subscriber:
             hlr_vty=OsmoHlrVty,
             msc_ip="127.0.0.1",
             msc_ctrl_port=4255,
+            msc_vty_port=4254,
             riak_client=None,
             riak_timeout=RIAK_TIMEOUT
     ):
         self._local_db_conn = local_db_conn
         self._osmo_hlr = OsmoHlrDb(hlr_db_path)
         self._osmo_hlr_vty = hlr_vty()
-        self._osmo_msc = OsmoMsc(msc_ip, msc_ctrl_port)
+        self._osmo_msc = OsmoMsc(msc_ip, msc_ctrl_port, msc_vty_port)
         self._riak_client = riak_client
         self._riak_timeout = riak_timeout
 
@@ -511,21 +512,10 @@ class Subscriber:
             raise SubscriberException('PG_HLR error getting subscriber: %s' % e)
 
     def expire_lu(self, msisdn):
-        raise NotImplementedError("Nitb migration no LU expiration is split components")
-        # appstring = 'OpenBSC'
-        # appport = 4242
-        # try:
-        #     vty = obscvty.VTYInteract(appstring, '127.0.0.1', appport)
-        #     cmd = 'enable'
-        #     vty.command(cmd)
-        #     cmd = 'subscriber extension %s expire' % (msisdn)
-        #     ret = vty.command(cmd)
-        #     api_log.debug('VTY: %s' % ret)
-        #     if ret:
-        #         raise SubscriberException('VTY: %s' % ret)
-        # except IOError as e:
-        #     api_log.debug('Exception in expire_lu! %s' % e)
-        #     pass
+        try:
+            self._osmo_msc.expire_subscriber_by_msisdn(msisdn)
+        except OsmoMscError as e:
+            raise SubscriberException("Expire LU exception: {}".format(e))
 
     def add(self, msisdn, name, balance, location='', equipment=''):
         if len(msisdn) == 15:
