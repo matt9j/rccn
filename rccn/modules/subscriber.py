@@ -315,16 +315,19 @@ class Subscriber:
 
     def get_all_inactive_since(self, days):
         try:
-            sq_hlr = sqlite3.connect(self.hlr_db_path)
-            sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute("SELECT extension FROM subscriber WHERE (length(extension) = 5 OR extension NOT LIKE \"%(prefix)s%%\") AND extension != %(smsc)s AND updated < date('now', '-%(days)s days')" % {'days': days, 'smsc': config['smsc'], 'prefix': config['internal_prefix']})
-            inactive = sq_hlr_cursor.fetchall()
-            sq_hlr.close()
-            return inactive
+            inactive_msisdns = self._osmo_hlr.get_all_inactive_msisdns_since(
+                days, config['internal_prefix']
+            )
 
-        except sqlite3.Error as e:
-            sq_hlr.close()
-            raise SubscriberException('SQ_HLR error: %s' % e.args[0])
+            try:
+                inactive_msisdns.remove((config['smsc'],))
+            except ValueError:
+                # It's okay to fail removal if the value is not present
+                pass
+
+            return inactive_msisdns
+        except OsmoHlrError as e:
+            raise SubscriberException('HLR error: %s' % e.args[0])
 
     def get_all_inactive_roaming(self):
         # TODO(matt9j) Currently unused.
@@ -342,16 +345,28 @@ class Subscriber:
 
     def get_all_inactive_roaming_since(self, days):
         try:
-            sq_hlr = sqlite3.connect(self.hlr_db_path)
-            sq_hlr_cursor = sq_hlr.cursor()
-            _sql=("SELECT extension FROM subscriber WHERE length(extension) = 11 AND extension NOT LIKE \"%(prefix)s%%\" AND lac = 0 AND updated < date('now', '-%(days)s days')" % {'days': days, 'prefix': config['internal_prefix']})
-            sq_hlr_cursor.execute(_sql)
-            inactive = sq_hlr_cursor.fetchall()
-            sq_hlr.close()
-            return inactive
-        except sqlite3.Error as e:
-            sq_hlr.close()
-            raise SubscriberException('SQ_HLR error: %s' % e.args[0])
+            inactive_msisdns = self._osmo_hlr.get_all_inactive_roaming_msisdns_since(days, config['internal_prefix'])
+        except OsmoHlrError as e:
+            raise SubscriberException('HLR error: %s' % e.args[0])
+
+        # The existing code explicitly checked that the subscribers were not
+        # attached, which may not be necessary for nonzero time since inactive.
+        try:
+            connected_subs = self._osmo_msc.get_active_subscribers()
+        except OsmoMscError as e:
+            raise SubscriberException("MSC error: {}".format(e.args[0]))
+
+        connected_msisdns = set()
+        for connected_sub in connected_subs:
+            connected_msisdns.add(connected_sub["msisdn"])
+
+        filtered_result = []
+        for inactive_msisdn in inactive_msisdns:
+            if inactive_msisdn not in connected_msisdns:
+                # Format as a nested list for API compatibility
+                filtered_result.append([inactive_msisdn])
+
+        return filtered_result
 
     def get_all_roaming_ours(self):
         # TODO(matt9j) Currently unused.
@@ -444,22 +459,17 @@ class Subscriber:
         return total_subscriber_count - online_count
 
     def get_roaming(self):
-        # TODO(matt9j) count registered subscribers and filter by active
-        # TODO(matt9j) Implement via CTRL interface and python filter
-        raise NotImplementedError("Nitb Migration")
-        # try:
-        #     sq_hlr = sqlite3.connect(self.hlr_db_path)
-        #     sq_hlr_cursor = sq_hlr.cursor()
-        #     sq_hlr_cursor.execute(
-        #         "SELECT count(*) FROM subscriber WHERE length(msisdn) = 11 AND msisdn not LIKE ?",
-        #         [partial_msisdn+'%']
-        #     )
-        #     count = sq_hlr_cursor.fetchone()
-        #     sq_hlr.close()
-        #     return count[0]
-        # except sqlite3.Error as e:
-        #     sq_hlr.close()
-        #     raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
+        try:
+            active_subs = self._osmo_msc.get_active_subscribers()
+        except OsmoMscError as e:
+            raise SubscriberException("MSC error: {}".format(e.args[0]))
+
+        count = 0
+        for sub in active_subs:
+            if len(sub["msisdn"]) == 11 and not sub["msisdn"].startswith(config['internal_prefix']):
+                count += 1
+
+        return count
 
     def get_unpaid_subscription(self):
         try:

@@ -138,6 +138,56 @@ class OsmoHlrDb(object):
             sq_hlr.close()
             raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
 
+    def get_all_inactive_msisdns_since(self, days, ignore_prefix):
+        """Get all msisdns that have been inactive for :days:, ignoring those
+        beginning with the :ignore_prefix:
+        """
+
+        # TODO This function was migrated from existing code, and could
+        #  probably use some refactoring.
+        try:
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
+            sq_hlr_cursor = sq_hlr.cursor()
+            sq_hlr_cursor.execute(
+                "SELECT msisdn FROM subscriber "
+                "WHERE (length(msisdn) = 5 OR msisdn NOT LIKE ?) AND "
+                "last_lu_seen < date('now', ?)",
+                [(ignore_prefix+'%'), "-{} days".format(days)]
+            )
+            inactive = sq_hlr_cursor.fetchall()
+            sq_hlr.close()
+            return inactive
+
+        except sqlite3.Error as e:
+            sq_hlr.close()
+            raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
+
+    def get_all_inactive_roaming_msisdns_since(self, days, ignore_prefix):
+        """Get all roaming msisdns (defined as length 11, unattached,
+        from external prefix) that have been inactive for :days:, ignoring
+        those beginning with the :ignore_prefix:
+        """
+
+        # TODO This function was migrated from existing code, and could
+        #  probably use some refactoring.
+        try:
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
+            sq_hlr_cursor = sq_hlr.cursor()
+            sq_hlr_cursor.execute(
+                "SELECT msisdn FROM subscriber "
+                "WHERE length(msisdn) = 11 AND msisdn NOT LIKE ? AND "
+                "last_lu_seen < date('now', ?)",
+                [(ignore_prefix+'%'), "-{} days".format(days)]
+            )
+
+            inactive = sq_hlr_cursor.fetchall()
+            sq_hlr.close()
+            return inactive
+
+        except sqlite3.Error as e:
+            sq_hlr.close()
+            raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
+
 
 class OsmoHlrVty(object):
     """Encapsulates low-level vty operations with an internal interface
