@@ -50,8 +50,13 @@ class Subscriber:
 
     Args:
         local_db_conn: The connection used for local datastore queries, defaults to the global db_conn
+        hlr_ip: The IP address of the network's HLR (home location register)
+        hlr_ctrl_port: The port of the HLR's osmo ctrl interface
+        hlr_vty_port: The port of the HLR's vty
         hlr_db_path: The path of the sqlite3 database of the hlr, defaults to global config
-        vty: The provider of a vty connection to the operational HLR, defaults to obscvty
+        msc_ip: The Ip address of the network's MSC (mobile switching center)
+        msc_ctrl_port: The port of the msc's osmo ctrl interface
+        msc_vty_port: The port of the msc's vty
         riak_client: The riak distributed hlr client, defaults to no riak connection
         riak_timeout: The wait timeout for riak operations
     """
