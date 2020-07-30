@@ -119,6 +119,18 @@ class OsmoHlr(object):
             sq_hlr.close()
             raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
 
+    def get_all_11digit_last_location_updates(self):
+        try:
+            sq_hlr = sqlite3.connect(self.hlr_db_path)
+            sq_hlr_cursor = sq_hlr.cursor()
+            sq_hlr_cursor.execute("SELECT msisdn, last_lu_seen FROM subscriber WHERE length(msisdn) = 11 ")
+            result_tuples = sq_hlr_cursor.fetchall()
+            result_mapping = {result[0]: result[1] for result in result_tuples}
+            return result_mapping
+        except sqlite3.Error as e:
+            sq_hlr.close()
+            raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
+
     def get_all_imeis(self):
         try:
             sq_hlr = sqlite3.connect(self.hlr_db_path)
