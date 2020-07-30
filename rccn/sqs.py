@@ -127,8 +127,7 @@ try:
     except:
         connected = []
         pass
-    sub = subs.get_all_expire()
-    expire_lu = {el[0]:el[1] for el in sub}
+    last_lus = subs.get_all_11digit_last_location_updates()
     lev = sms_log.level
     sms_log.setLevel(cn.logging.INFO)
     smsq = OsmoSmsQ.read_queue(0, True, False, '', '10000', '', '', True)
@@ -167,7 +166,7 @@ try:
             #pass
 
         try:
-            last = datetime.strptime(expire_lu[dest], '%Y-%m-%d %X').replace(tzinfo=from_zone).astimezone(to_zone).strftime("%Y-%m-%d %H:%M:%S")
+            last = datetime.strptime(last_lus[dest], '%Y-%m-%d %X').replace(tzinfo=from_zone).astimezone(to_zone).strftime("%Y-%m-%d %H:%M:%S")
         except KeyError:
             last = 'UNKNOWN!'
             if cn.config['internal_prefix'] != dest[:6]:
@@ -189,7 +188,7 @@ try:
 
         if c_bts != cn.vpn_ip_address:
 
-            sms_log.debug("-----> (\033[%s;3m%s\033[0m) is at %s according to HLR. LU Expired: (\033[92;1m%s\033[94;1m%s\033[0m)" %
+            sms_log.debug("-----> (\033[%s;3m%s\033[0m) is at %s according to HLR. Last LU: (\033[92;1m%s\033[94;1m%s\033[0m)" %
                           (mark, dest, c_bts, last[:10], last[10:]))
             not_here = not_here + 1
 
@@ -210,7 +209,7 @@ try:
                 sent = sent + 1
                 mark_local(mid)
         else:
-            sms_log.debug("(\033[%s;3m%s\033[0m) is here according to HLR. LU Expired: (\033[92;1m%s\033[94;1m%s\033[0m)" %
+            sms_log.debug("(\033[%s;3m%s\033[0m) is here according to HLR. Last LU: (\033[92;1m%s\033[94;1m%s\033[0m)" %
                           (mark, dest, last[:10], last[10:]))
             if dest in connected:
                 sms_log.debug("Destination Number (%s) even appears to be connected!", dest)

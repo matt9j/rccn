@@ -29,7 +29,6 @@ import datetime
 import psycopg2
 import riak
 import socket
-import sqlite3
 import time
 from unidecode import unidecode
 
@@ -211,19 +210,13 @@ class Subscriber:
         except OsmoHlrError as e:
             raise SubscriberException('SQ_HLR error: %s' % e.args[0])
 
-    def get_all_expire(self):
+    def get_all_11digit_last_location_updates(self):
         try:
-            sq_hlr = sqlite3.connect(self.hlr_db_path)
-            sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute("SELECT extension,expire_lu FROM subscriber WHERE length(extension) = 11")
-            subscribers = sq_hlr_cursor.fetchall()
-            if subscribers == []:
+            updates = self._osmo_hlr.get_all_11digit_last_location_updates()
+            if len(updates) == 0:
                 raise SubscriberException('No subscribers found')
-            else:
-                sq_hlr.close()
-                return subscribers
-        except sqlite3.Error as e:
-            sq_hlr.close()
+            return updates
+        except OsmoHlrError as e:
             raise SubscriberException('SQ_HLR error: %s' % e.args[0])
 
     def get_sip_connected(self):
