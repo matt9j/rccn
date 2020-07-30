@@ -36,15 +36,22 @@ class OsmoHlrError(Exception):
     pass
 
 
-class OsmoHlrDb(object):
-    """Encapsulates low-level database transactions with an internal interface
+class OsmoHlr(object):
+    """Encapsulates low-level HLR transactions with an internal interface
 
     The osmohlr db is not a stable interface, so updates may have to made to
     support changes to the db structure over time.
+
+    The VTY itself is also not a stable interface, so changes and updates may
+    need to happen here with new released versions of the HLR.
     """
 
-    def __init__(self, hlr_db_path):
+    def __init__(self, ip_address, ctrl_port, vty_port, hlr_db_path):
         self.hlr_db_path = hlr_db_path
+        self._appstring = "OsmoHLR"
+        self._ip = ip_address
+        self._vty_port = vty_port
+        self._vty = obscvty
 
     def get_msisdn_from_imsi(self, imsi):
         # TODO(matt9j) Check for duplication
@@ -187,19 +194,6 @@ class OsmoHlrDb(object):
         except sqlite3.Error as e:
             sq_hlr.close()
             raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
-
-
-class OsmoHlrVty(object):
-    """Encapsulates low-level vty operations with an internal interface
-
-    The VTY itself is not a stable interface, so changes and updates may need
-    to happen here with new released versions of the HLR.
-    """
-    def __init__(self, vty=obscvty):
-        self._vty = vty
-        self._appstring = "OsmoHLR"
-        self._ip = "127.0.0.1"
-        self._vty_port = 4258
 
     def show_by_msisdn(self, msisdn):
         vty = self._vty.VTYInteract(self._appstring, self._ip, self._vty_port)

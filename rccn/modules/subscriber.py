@@ -35,7 +35,7 @@ from unidecode import unidecode
 
 from config import (db_conn, sq_hlr_path, config, api_log, roaming_log, RIAK_TIMEOUT)
 from decimal import Decimal
-from modules.osmohlr import (OsmoHlrDb, OsmoHlrVty, OsmoHlrError)
+from modules.osmohlr import (OsmoHlr, OsmoHlrError)
 from modules.osmomsc import (OsmoMsc, OsmoMscError)
 from ESL import *
 
@@ -60,8 +60,10 @@ class Subscriber:
     def __init__(
             self,
             local_db_conn=db_conn,
+            hlr_ip="127.0.0.1",
+            hlr_ctrl_port=4259,
+            hlr_vty_port=4258,
             hlr_db_path=sq_hlr_path,
-            hlr_vty=OsmoHlrVty,
             msc_ip="127.0.0.1",
             msc_ctrl_port=4255,
             msc_vty_port=4254,
@@ -69,8 +71,7 @@ class Subscriber:
             riak_timeout=RIAK_TIMEOUT
     ):
         self._local_db_conn = local_db_conn
-        self._osmo_hlr = OsmoHlrDb(hlr_db_path)
-        self._osmo_hlr_vty = hlr_vty()
+        self._osmo_hlr = OsmoHlr(hlr_ip, hlr_ctrl_port, hlr_vty_port, hlr_db_path)
         self._osmo_msc = OsmoMsc(msc_ip, msc_ctrl_port, msc_vty_port)
         self._riak_client = riak_client
         self._riak_timeout = riak_timeout
@@ -648,7 +649,7 @@ class Subscriber:
     def delete(self, msisdn):
         subscriber_number = msisdn[-5:]
         try:
-            self._osmo_hlr_vty.update_msisdn(msisdn, subscriber_number)
+            self._osmo_hlr.update_msisdn(msisdn, subscriber_number)
         except:
             pass
 
@@ -675,18 +676,18 @@ class Subscriber:
         self._delete_in_distributed_hlr(msisdn)
 
     def purge(self, msisdn):
-        self._osmo_hlr_vty.delete_by_msisdn(msisdn)
+        self._osmo_hlr.delete_by_msisdn(msisdn)
 
     def print_vty_hlr_info(self, msisdn):
-        return self._osmo_hlr_vty.show_by_msisdn(msisdn)
+        return self._osmo_hlr.show_by_msisdn(msisdn)
 
     def authorized(self, msisdn, auth):
         # auth 0 subscriber disabled
         # auth 1 subscriber enabled
         if auth == 0:
-            self._osmo_hlr_vty.disable_access_by_msisdn(msisdn)
+            self._osmo_hlr.disable_access_by_msisdn(msisdn)
         elif auth == 1:
-            self._osmo_hlr_vty.enable_access_by_msisdn(msisdn)
+            self._osmo_hlr.enable_access_by_msisdn(msisdn)
         else:
             raise SubscriberException("Unknown auth mode '{}'".format(auth))
 
@@ -793,8 +794,8 @@ class Subscriber:
         # TODO(matt9j) The name parameter is now unused in the osmoHLR
         try:
             api_log.debug('Auth Subscriber in Local HLR: %s, %s' % (msisdn, new_msisdn) )
-            self._osmo_hlr_vty.update_msisdn(msisdn, new_msisdn)
-            self._osmo_hlr_vty.enable_access_by_msisdn(new_msisdn)
+            self._osmo_hlr.update_msisdn(msisdn, new_msisdn)
+            self._osmo_hlr.enable_access_by_msisdn(new_msisdn)
         except Exception as e:
             raise SubscriberException('SQ_HLR error provisioning the subscriber %s' % e)
 
