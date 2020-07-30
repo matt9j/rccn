@@ -64,7 +64,7 @@ def rx_alert_notification(pdu):
                     subscriber.data['updated'] = now
                     subscriber.indexes = set([('modified_int', now), ('msisdn_bin', subscriber.data['msisdn'])])
                     subscriber.store()
-                    sub._update_location_pghlr(subscriber)
+                    sub.update_location_pghlr(subscriber)
                 except Exception as e:
                     print str(e)
                 sub.update_location_local_hlr(extension)

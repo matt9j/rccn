@@ -115,7 +115,7 @@ def get(msisdn, imsi, auth, single = False):
             tmp_obj.store()
         if not riak_ext or not len(riak_imsi):
             print '\033[93mExtension %s not found\033[0m, adding to D_HLR' % (msisdn)
-            sub._provision_in_distributed_hlr(imsi, msisdn)
+            sub.provision_in_distributed_hlr(imsi, msisdn)
         else:
             # Already checked if the ext in the imsi key matches osmo extension.
             # Now check if the key pointed to by the extension index matches the osmo imsi

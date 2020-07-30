@@ -599,7 +599,7 @@ class Subscriber:
             subscriber.store()
 
             if ts_update:
-                self._update_location_pghlr(subscriber)
+                self.update_location_pghlr(subscriber)
 
         except riak.RiakError as e:
             raise SubscriberException('RK_HLR error: %s' % e)
@@ -608,7 +608,7 @@ class Subscriber:
         except SubscriberException as e:
             raise SubscriberException('PG_HLR error updating info: %s' % e)
 
-    def _update_location_pghlr(self, subscriber):
+    def update_location_pghlr(self, subscriber):
         try:
             cur = self._local_db_conn.cursor()
             update_date = datetime.datetime.fromtimestamp(subscriber.data['updated'])
@@ -825,8 +825,7 @@ class Subscriber:
             self._local_db_conn.rollback()
             raise SubscriberException('PG_HLR error provisioning the subscriber: %s' % e)
 
-    def _provision_in_distributed_hlr(self, imsi, msisdn):
-        # TODO(matt9j) Used externally
+    def provision_in_distributed_hlr(self, imsi, msisdn):
         try:
             now = int(time.time())
             rk_hlr = self._riak_client.bucket('hlr')
