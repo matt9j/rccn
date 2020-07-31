@@ -532,20 +532,20 @@ class Subscriber:
         if self._check_subscriber_exists(msisdn):
             try:
                 # get a new extension
-                msisdn = self._get_new_msisdn(msisdn, name)
+                msisdn = self._get_new_msisdn(msisdn)
                 subscriber_number = config['internal_prefix'] + msisdn
                 self._provision_in_database(subscriber_number, name, balance, location, equipment)
             except SubscriberException as e:
                 # revert back the change on SQ_HLR
-                self._authorize_subscriber_in_local_hlr(subscriber_number, msisdn, name)
+                self._authorize_subscriber_in_local_hlr(subscriber_number, msisdn)
                 raise SubscriberException('Error provisioning new number %s, please try again. ERROR: %s' % (msisdn, str(e)))
         else:
             try:
-                self._authorize_subscriber_in_local_hlr(msisdn, subscriber_number, name)
+                self._authorize_subscriber_in_local_hlr(msisdn, subscriber_number)
                 self._provision_in_database(subscriber_number, name, balance, location, equipment)
             except SubscriberException as e:
                 # revert back the change on SQ_HLR
-                self._authorize_subscriber_in_local_hlr(subscriber_number, msisdn, name)
+                self._authorize_subscriber_in_local_hlr(subscriber_number, msisdn)
                 raise SubscriberException('Error provisioning the number %s, please try again. ERROR: %s' % (msisdn, str(e)))
                 
         return msisdn
@@ -559,7 +559,7 @@ class Subscriber:
         except OsmoHlrError as e:
             raise SubscriberException('SQ_HLR error sub: %s' % e.args[0])
 
-    def _get_new_msisdn(self, msisdn, name):
+    def _get_new_msisdn(self, msisdn):
         try:
             newext=msisdn
             while True:
@@ -574,7 +574,7 @@ class Subscriber:
                 api_log.debug('New Extension: %s' % newext)
                 if not self._check_subscriber_exists(newext):
                     try:
-                        self._authorize_subscriber_in_local_hlr(msisdn, config['internal_prefix'] + newext, name)
+                        self._authorize_subscriber_in_local_hlr(msisdn, config['internal_prefix'] + newext)
                     except:
                         raise SubscriberException('SQ_HLR error adding new extension %s to the db' % newext)
                     return newext
@@ -583,7 +583,7 @@ class Subscriber:
 
     def update(self, msisdn, name, number):
         imsi = self.get_imsi(msisdn)
-        self._authorize_subscriber_in_local_hlr(msisdn, number, name)
+        self._authorize_subscriber_in_local_hlr(msisdn, number)
         self.update_location(imsi, number, True)
 
     def update_location(self, imsi, msisdn, ts_update=False):
@@ -790,8 +790,7 @@ class Subscriber:
             raise SubscriberException('SQ_HLR error: %s' % e.args[0])
         return str(imsi)
 
-    def _authorize_subscriber_in_local_hlr(self, msisdn, new_msisdn, name):
-        # TODO(matt9j) The name parameter is now unused in the osmoHLR
+    def _authorize_subscriber_in_local_hlr(self, msisdn, new_msisdn):
         try:
             api_log.debug('Auth Subscriber in Local HLR: %s, %s' % (msisdn, new_msisdn) )
             self._osmo_hlr.update_msisdn(msisdn, new_msisdn)
