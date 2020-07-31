@@ -756,22 +756,24 @@ class Subscriber:
             raise SubscriberException('PG_HLR error changing subscriber subscription status: %s' % e)
 
     def edit(self, msisdn, name, balance, location, equipment, roaming):
-        params = locals()
-        updating = [k for k, v in params.items() if v != ""]
-        updating.remove('self')
-        updating.remove('msisdn')
-        # TODO(matt9j) The name parameter is now unused in the osmoHLR
+        parameter_set = {
+            "name": name,
+            "balance": balance,
+            "location": location,
+            "equipment": equipment,
+            "roaming": roaming
+        }
+        update_set = {col: value for col, value in parameter_set if value != ""}
 
         # PG_HLR update subscriber data
         try:
-            _set = {}
-            for i in updating:
-                _set[i] = params[i]
             cur = self._local_db_conn.cursor()
-            sql_template = "UPDATE subscribers SET ({}) = %s WHERE msisdn = '{}'"
-            sql = sql_template.format(', '.join(_set.keys()), msisdn)
-            params = (tuple(_set.values()),)
-            cur.execute(sql, params)
+            query = "UPDATE subscribers SET ({}) = %s WHERE msisdn = %s".format(
+                ', '.join(update_set.keys())
+            )
+            params = list(update_set.values())
+            params.append(msisdn)
+            cur.execute(query, params)
             if cur.rowcount > 0:
                 self._local_db_conn.commit()
             else:
