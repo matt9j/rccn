@@ -251,26 +251,28 @@ class Subscriber:
             raise SubscriberException('MSC error: %s' % e.args[0])
 
     def get_all_disconnected(self):
-        # TODO(matt9j) Currently unused
+        try:
+            cur = self._local_db_conn.cursor()
+            cur.execute('SELECT msisdn FROM subscribers')
+            subs = cur.fetchall()
+            cur.close()
+        except psycopg2.DatabaseError as e:
+            raise SubscriberException('PG_HLR error getting subscribers: %s' % e)
 
-        # TODO(matt9j) Implement as a diff between the ctrl interface
-        #  connected list and postgres store or HLR store.
+        try:
+            connected_subs = self._osmo_msc.get_active_subscribers()
+        except OsmoMscError as e:
+            raise SubscriberException('MSC error: %s' % e.args[0])
 
-        raise NotImplementedError("Nitb Migration")
-        # try:
-        #     sq_hlr = sqlite3.connect(self.hlr_db_path)
-        #     sq_hlr_cursor = sq_hlr.cursor()
-        #     sq_hlr_cursor.execute("SELECT extension FROM subscriber WHERE extension LIKE ? AND lac = 0", [(config['internal_prefix']+'%')])
-        #     disconnected = sq_hlr_cursor.fetchall()
-        #     if disconnected == []:
-        #         raise SubscriberException('No disconnected subscribers found')
-        #     else:
-        #         sq_hlr.close()
-        #         return disconnected
-        #
-        # except sqlite3.Error as e:
-        #     sq_hlr.close()
-        #     raise SubscriberException('SQ_HLR error: %s' % e.args[0])
+        # Build a set first for O(1) membership testing used in the loop below
+        connected_subs = set(x["msisdn"] for x in connected_subs)
+
+        disconnected = []
+        for sub in subs:
+            if sub not in connected_subs:
+                disconnected.append(sub)
+
+        return disconnected
 
     def get_all_unregistered(self):
         try:
