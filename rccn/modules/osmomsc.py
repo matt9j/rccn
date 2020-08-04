@@ -66,10 +66,12 @@ class OsmoMsc(object):
         subscribers = subscribers.split(" ")[1].strip()
 
         subscriber_list = []
-        # Split on newlines for the payload
-        for subscriber in subscribers.split("\n"):
-            (imsi, msisdn) = subscriber.split(",")
-            subscriber_list.append({"imsi": imsi, "msisdn": msisdn})
+
+        if len(subscriber_list) > 0:
+            # Split on newlines for the payload
+            for subscriber in subscribers.split("\n"):
+                (imsi, msisdn) = subscriber.split(",")
+                subscriber_list.append({"imsi": imsi, "msisdn": msisdn})
 
         return subscriber_list
 
