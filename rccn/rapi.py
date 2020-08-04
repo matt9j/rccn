@@ -110,7 +110,7 @@ class SubscriberRESTService:
         api_log.info('%s - [GET] %s/%s', request.getHost().host, self.path, imsi)
         try:
             sub =Subscriber()
-            data = json.dumps(sub.get_local_extension(imsi), cls=PGEncoder)
+            data = json.dumps(sub.get_msisdn_from_imsi(imsi), cls=PGEncoder)
         except SubscriberException as e:
             data = {'status': 'failed', 'error': str(e)}
 

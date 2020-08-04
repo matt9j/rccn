@@ -129,7 +129,7 @@ def update_local_subscribers():
     connected_msisdns = sub.get_all_connected()
     for imsi in subscribers:
         try:
-            msisdn = sub.get_local_extension(imsi)
+            msisdn = sub.get_msisdn_from_imsi(imsi)
         except SubscriberException as e:
             roaming_log.info("Couldn't retrieve the msisdn %s from imsi %s: %s" % (msisdn, imsi, e))
             continue
