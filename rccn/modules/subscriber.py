@@ -90,7 +90,7 @@ class Subscriber:
         try:
             cur.execute("SELECT balance FROM subscribers WHERE msisdn = %(number)s AND authorized=1", {'number': subscriber_number})
             balance = cur.fetchone()
-            if balance != None:
+            if balance is not None:
                 return balance[0]
             else:
                 raise SubscriberException("Error in getting subscriber balance")
@@ -127,7 +127,7 @@ class Subscriber:
 
             cur.execute("SELECT msisdn FROM subscribers WHERE msisdn = %(number)s AND authorized=1", {'number': subscriber_number})
             sub = cur.fetchone()
-            if sub != None:
+            if sub is not None:
                 return True
             else:
                 return False
@@ -233,10 +233,10 @@ class Subscriber:
             e = con.api("show registrations")
             if e is None:
                 return 0
-            reg=e.getBody()
-            lines=reg.split('\n')
+            reg = e.getBody()
+            lines = reg.split('\n')
             for line in lines[1:]:
-                vals=line.split(',')
+                vals = line.split(',')
                 if len(vals) < 10:
                     return _sip_connected
                 _sip_connected.append([vals[0]])
@@ -492,11 +492,8 @@ class Subscriber:
             # lookup extension by imsi
             extension = self.get_msisdn_from_imsi(msisdn)
             if len(extension) == 11:
-                extension=extension[-5:]
-            imsi = msisdn
+                extension = extension[-5:]
             msisdn = extension
-        else:
-            imsi = self.get_imsi(msisdn)
 
         subscriber_number = config['internal_prefix'] + msisdn
         # check if subscriber already exists
@@ -532,7 +529,7 @@ class Subscriber:
 
     def _get_new_msisdn(self, msisdn):
         try:
-            newext=msisdn
+            newext = msisdn
             while True:
                 # There was an Infinite loop here if msisdn + 1 does exist we never get out
                 # Not ever sure what this is for.                
@@ -546,10 +543,10 @@ class Subscriber:
                 if not self._check_subscriber_exists(newext):
                     try:
                         self._authorize_subscriber_in_local_hlr(msisdn, config['internal_prefix'] + newext)
-                    except:
+                    except OsmoHlrError:
                         raise SubscriberException('SQ_HLR error adding new extension %s to the db' % newext)
                     return newext
-        except:
+        except SubscriberException:
             raise SubscriberException('Error in getting new msisdn for existing subscriber')
 
     def update(self, msisdn, name, number):
@@ -561,12 +558,12 @@ class Subscriber:
         try:
             rk_hlr = self._riak_client.bucket('hlr')
             subscriber = rk_hlr.get(str(imsi), timeout=self._riak_timeout)
-            roaming_log.info('RIAK: pushing %s, was %s' % (config['local_ip'],subscriber.data['current_bts']))
+            roaming_log.info('RIAK: pushing %s, was %s' % (config['local_ip'], subscriber.data['current_bts']))
             subscriber.data['current_bts'] = config['local_ip']
             if ts_update:
                 now = int(time.time())
                 subscriber.data['updated'] = now
-                subscriber.indexes = set([('modified_int', now), ('msisdn_bin', subscriber.data['msisdn'])])
+                subscriber.indexes = {[('modified_int', now), ('msisdn_bin', subscriber.data['msisdn'])]}
             subscriber.store()
 
             if ts_update:
@@ -623,7 +620,7 @@ class Subscriber:
         subscriber_number = msisdn[-5:]
         try:
             self._osmo_hlr.update_msisdn(msisdn, subscriber_number)
-        except:
+        except OsmoHlrError:
             pass
 
         # PG_HLR delete subscriber
@@ -640,8 +637,8 @@ class Subscriber:
 
             # TODO(matt9j) This might leak a transaction if the subscriber is not in the hlr
             if cur.rowcount > 0:
-               self._local_db_conn.commit()
-        except psycopg2.DatabaseError as e:
+                self._local_db_conn.commit()
+        except psycopg2.DatabaseError:
             pass
         finally:
             cur.close()
@@ -773,7 +770,7 @@ class Subscriber:
 
     def _authorize_subscriber_in_local_hlr(self, msisdn, new_msisdn):
         try:
-            api_log.debug('Auth Subscriber in Local HLR: %s, %s' % (msisdn, new_msisdn) )
+            api_log.debug('Auth Subscriber in Local HLR: %s, %s' % (msisdn, new_msisdn))
             self._osmo_hlr.update_msisdn(msisdn, new_msisdn)
             self._osmo_hlr.enable_access_by_msisdn(new_msisdn)
         except Exception as e:
@@ -844,9 +841,4 @@ class Subscriber:
 
 
 if __name__ == '__main__':
-    sub = Subscriber()
-    try:
-        subs = sub.get_all_roaming()
-        print(subs)
-    except SubscriberException as e:
-        print("Error: %s" % e)
+    print(Subscriber().get_all_roaming())
