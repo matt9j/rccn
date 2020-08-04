@@ -29,7 +29,10 @@ from __future__ import division
 from __future__ import print_function
 
 from osmopy import obscvty
+import logging
 import sqlite3
+
+log = logging.getLogger(__name__)
 
 
 class OsmoHlrError(Exception):
@@ -65,9 +68,8 @@ class OsmoHlr(object):
             if len(connected) == 0:
                 raise OsmoHlrError('imsi %s not found' % imsi)
             if len(connected) > 1:
-                # TODO(matt9j) Loss of generality here could hide consistency
-                #  errors. Add a warning log at a minimum.
-                pass
+                log.critical("Multiple msisdn entries share imsi %s : %s", imsi, connected)
+
             return connected[0][0]
         except sqlite3.Error as e:
             raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
