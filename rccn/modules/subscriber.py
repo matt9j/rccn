@@ -321,20 +321,6 @@ class Subscriber:
         except OsmoHlrError as e:
             raise SubscriberException('HLR error: %s' % e.args[0])
 
-    def get_all_inactive_roaming(self):
-        # TODO(matt9j) Currently unused.
-        raise NotImplementedError("Nitb Migration")
-        # try:
-        #     sq_hlr = sqlite3.connect(self.hlr_db_path)
-        #     sq_hlr_cursor = sq_hlr.cursor()
-        #     sq_hlr_cursor.execute("SELECT extension FROM subscriber WHERE length(extension) = 11 AND extension NOT LIKE '%s%%' AND lac = 0" % config['internal_prefix'])
-        #     inactive = sq_hlr_cursor.fetchall()
-        #     sq_hlr.close()
-        #     return inactive
-        # except sqlite3.Error as e:
-        #     sq_hlr.close()
-        #     raise SubscriberException('SQ_HLR error: %s' % e.args[0])
-
     def get_all_inactive_roaming_since(self, days):
         try:
             inactive_msisdns = self._osmo_hlr.get_all_inactive_roaming_msisdns_since(days, config['internal_prefix'])
@@ -359,34 +345,6 @@ class Subscriber:
                 filtered_result.append([inactive_msisdn])
 
         return filtered_result
-
-    def get_all_roaming_ours(self):
-        # TODO(matt9j) Currently unused.
-        try:
-            b = self._riak_client.bucket('hlr')
-            b.set_property('r',1)
-            # Lets do it by site.
-            #s = self._riak_client.bucket('sites')
-            #s.set_property('r',1)
-            #sites=s.get_keys()
-            # We only actually care here about us
-            sites=[config['internal_prefix']]
-            results=[]
-            for site in sites:
-                roaming_log.info('Start searching site: %s' % site)
-                keys = b.get_index('msisdn_bin',site,str(int(site)+1)).results
-                roaming_log.info('Got %s keys' % len(keys) )
-                for imsi in keys:
-                    data = b.get(imsi).data
-                    if type(data) is not dict:
-                        continue
-                    if data['home_bts'] != data['current_bts']:
-                        results.append(imsi)
-            return results
-        except riak.RiakError as e:
-            raise SubscriberException('RK_HLR error: %s' % e)
-        except socket.error:
-            raise SubscriberException('RK_HLR error: unable to connect')
 
     def get_all_roaming(self):
         try:
@@ -838,16 +796,6 @@ class Subscriber:
             for key in subscriber.results:
                 rk_hlr.get(key).remove_indexes().delete()
 
-        except riak.RiakError as e:
-            raise SubscriberException('RK_HLR error: %s' % e)
-        except socket.error:
-            raise SubscriberException('RK_HLR error: unable to connect')
-
-    def delete_in_dhlr_imsi(self, imsi):
-        # TODO(matt9j) Currently unused.
-        try:
-            rk_hlr = self._riak_client.bucket('hlr')
-            rk_hlr.delete(str(imsi))
         except riak.RiakError as e:
             raise SubscriberException('RK_HLR error: %s' % e)
         except socket.error:
