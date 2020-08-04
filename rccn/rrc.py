@@ -126,12 +126,18 @@ def send_welcome_sms(number):
 def update_local_subscribers():
     sub = Subscriber()
     subscribers = sub.get_all_roaming()
+    connected_msisdns = sub.get_all_connected()
     for imsi in subscribers:
         try:
-            msisdn = sub.get_local_msisdn(imsi)
+            msisdn = sub.get_local_extension(imsi)
         except SubscriberException as e:
             roaming_log.info("Couldn't retrieve the msisdn %s from imsi %s: %s" % (msisdn, imsi, e))
             continue
+
+        if [msisdn] in connected_msisdns:
+            roaming_log.info("Subscriber %s is connected locally", msisdn)
+            continue
+
         try:
             roaming_log.info('Subscriber %s is back at home_bts, update location' % msisdn)
             sub.update_location(imsi, msisdn, True)
