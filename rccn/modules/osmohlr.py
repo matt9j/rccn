@@ -54,7 +54,6 @@ class OsmoHlr(object):
         self._vty = obscvty
 
     def get_msisdn_from_imsi(self, imsi):
-        # TODO(matt9j) Check for duplication
         try:
             sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()

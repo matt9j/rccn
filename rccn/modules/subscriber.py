@@ -131,15 +131,7 @@ class Subscriber:
         except psycopg2.DatabaseError as e:
             raise SubscriberException('Database error in checking subscriber authorization: %s' % e)
 
-    def get_local_msisdn(self, imsi):
-        # TODO(matt9j) Check for duplication
-        try:
-            return self._osmo_hlr.get_msisdn_from_imsi(imsi)
-        except OsmoHlrError as e:
-            raise SubscriberException("OsmoHlr error: {}".format(e.args[0]))
-
-    def get_local_extension(self, imsi):
-        # TODO(matt9j) Check for duplication
+    def get_msisdn_from_imsi(self, imsi):
         try:
             return self._osmo_hlr.get_msisdn_from_imsi(imsi)
         except OsmoHlrError as e:
@@ -519,7 +511,7 @@ class Subscriber:
     def add(self, msisdn, name, balance, location='', equipment=''):
         if len(msisdn) == 15:
             # lookup extension by imsi
-            extension = self.get_local_extension(msisdn)
+            extension = self.get_msisdn_from_imsi(msisdn)
             if len(extension) == 11:
                 extension=extension[-5:]
             imsi = msisdn

@@ -133,7 +133,7 @@ def rx_alert_notification(pdu):
 
         else:
             # Mode deliver-src-imsi (not used)
-            extension = sub.get_local_extension(pdu.source_addr)
+            extension = sub.get_msisdn_from_imsi(pdu.source_addr)
             if extension[:6] == myprefix:
                 print "That's mine"
                 bts = num.get_local_hlr_btsinfo(extension)
