@@ -85,38 +85,41 @@ class Subscriber:
         if len(subscriber_number) == 5:
             subscriber_number = config['internal_prefix']+subscriber_number
 
+        cur = self._open_local_cursor()
+
         try:
-            cur = self._local_db_conn.cursor()
             cur.execute("SELECT balance FROM subscribers WHERE msisdn = %(number)s AND authorized=1", {'number': subscriber_number})
             balance = cur.fetchone()
             if balance != None:
-                cur.close()
                 return balance[0]
             else:
-                cur.close()
                 raise SubscriberException("Error in getting subscriber balance")
         except psycopg2.DatabaseError as e:
-            cur.close()
             raise SubscriberException('Database error in getting subscriber balance: %s' % e)
+        finally:
+            cur.close()
 
     def set_balance(self, subscriber_number, balance):
         # check if extension if yes add internal_prefix
         if len(subscriber_number) == 5:
             subscriber_number = config['internal_prefix']+subscriber_number
+
+        cur = self._open_local_cursor()
+
         try:
-            cur = self._local_db_conn.cursor()
             cur.execute("UPDATE subscribers SET balance = %(balance)s WHERE msisdn = %(number)s", {'balance': Decimal(str(balance)), 'number': subscriber_number})
             self._local_db_conn.commit()
         except psycopg2.DatabaseError as e:
-            cur.close()
             raise SubscriberException('Database error updating balance: %s' % e)
+        finally:
+            cur.close()
 
     def is_authorized(self, subscriber_number, auth_type):
         # auth type 0 check subscriber without checking extension
         # auth type 1 check subscriber with checking extension
-        try:
-            cur = self._local_db_conn.cursor()
+        cur = self._open_local_cursor()
 
+        try:
             if auth_type == 1:
                 # check if extension if yes add internal_prefix used to find the subscriber by the extension
                 if len(subscriber_number) == 5:
@@ -130,6 +133,8 @@ class Subscriber:
                 return False
         except psycopg2.DatabaseError as e:
             raise SubscriberException('Database error in checking subscriber authorization: %s' % e)
+        finally:
+            cur.close()
 
     def get_msisdn_from_imsi(self, imsi):
         try:
@@ -155,22 +160,23 @@ class Subscriber:
             raise SubscriberException('SQ_HLR error: %s' % e.args[0])
 
     def get_all(self):
+        cur = self._open_local_cursor()
         try:
             cur = self._local_db_conn.cursor()
             cur.execute('SELECT * FROM subscribers')
             if cur.rowcount > 0:
                 sub = cur.fetchall()
-                cur.close()
                 return sub
             else:
-                cur.close()
                 raise SubscriberException('PG_HLR No subscribers found')
         except psycopg2.DatabaseError as e:
             raise SubscriberException('PG_HLR error getting subscribers: %s' % e)
+        finally:
+            cur.close()
 
     def get_all_notpaid(self):
+        cur = self._open_local_cursor()
         try:
-            cur = self._local_db_conn.cursor()
             cur.execute('SELECT * FROM subscribers WHERE subscription_status = 0')
             if cur.rowcount > 0:
                 sub = cur.fetchall()
@@ -179,10 +185,12 @@ class Subscriber:
                 raise SubscriberException('PG_HLR No subscribers found')
         except psycopg2.DatabaseError as e:
             raise SubscriberException('PG_HLR error getting subscribers: %s' % e)
+        finally:
+            cur.close()
 
     def get_all_unauthorized(self):
+        cur = self._open_local_cursor()
         try:
-            cur = self._local_db_conn.cursor()
             cur.execute('SELECT * FROM subscribers WHERE authorized = 0')
             if cur.rowcount > 0:
                 sub = cur.fetchall()
@@ -191,6 +199,8 @@ class Subscriber:
                 raise SubscriberException('PG_HLR No subscribers found')
         except psycopg2.DatabaseError as e:
             raise SubscriberException('PG_HLR error getting subscribers: %s' % e)
+        finally:
+            cur.close()
 
     def get_all_5digits(self):
         try:
@@ -251,13 +261,14 @@ class Subscriber:
             raise SubscriberException('MSC error: %s' % e.args[0])
 
     def get_all_disconnected(self):
+        cur = self._open_local_cursor()
         try:
-            cur = self._local_db_conn.cursor()
             cur.execute('SELECT msisdn FROM subscribers')
             subs = cur.fetchall()
-            cur.close()
         except psycopg2.DatabaseError as e:
             raise SubscriberException('PG_HLR error getting subscribers: %s' % e)
+        finally:
+            cur.close()
 
         try:
             connected_subs = self._osmo_msc.get_active_subscribers()
@@ -392,19 +403,19 @@ class Subscriber:
         # There is a race condition here since these values are coming from
         # two different databases (postgres and the MSC) and an update could
         # be in progress while the count is computed.
+        cur = self._open_local_cursor()
         try:
-            cur = self._local_db_conn.cursor()
             cur.execute(
                 'SELECT count(*) FROM subscribers WHERE length(msisdn) = 11'
             )
             if cur.rowcount > 0:
                 total_subscriber_count = cur.fetchone()[0]
-                cur.close()
             else:
-                cur.close()
                 raise SubscriberException('PG_HLR No subscribers found')
         except psycopg2.DatabaseError as e:
             raise SubscriberException('PG_HLR error getting subscribers: %s' % e)
+        finally:
+            cur.close()
 
         online_count = self.get_online()
 
@@ -424,35 +435,41 @@ class Subscriber:
         return count
 
     def get_unpaid_subscription(self):
+        cur = self._open_local_cursor()
         try:
-            cur = self._local_db_conn.cursor()
             cur.execute('SELECT count(*) FROM subscribers WHERE subscription_status=0')
             sub = cur.fetchone()
             return sub[0]
         except psycopg2.DatabaseError as e:
             raise SubscriberException('PG_HLR error getting subscribers: %s' % e)
+        finally:
+            cur.close()
 
     def get_paid_subscription(self):
+        cur = self._open_local_cursor()
         try:
-            cur = self._local_db_conn.cursor()
             cur.execute('SELECT count(*) FROM subscribers WHERE subscription_status=1')
             sub = cur.fetchone()
             return sub[0]
         except psycopg2.DatabaseError as e:
             raise SubscriberException('PG_HLR error getting subscribers: %s' % e)
+        finally:
+            cur.close()
 
     def get_unauthorized(self):
+        cur = self._open_local_cursor()
         try:
-            cur = self._local_db_conn.cursor()
             cur.execute('SELECT count(*) FROM subscribers WHERE authorized=0')
             sub = cur.fetchone()
             return sub[0]
         except psycopg2.DatabaseError as e:
             raise SubscriberException('PG_HLR error getting subscribers: %s' % e)
+        finally:
+            cur.close()
 
     def get(self, msisdn):
+        cur = self._open_local_cursor()
         try:
-            cur = self._local_db_conn.cursor()
             cur.execute('SELECT * FROM subscribers WHERE msisdn = %(msisdn)s', {'msisdn': msisdn})
             if cur.rowcount > 0:
                 sub = cur.fetchone()
@@ -461,6 +478,8 @@ class Subscriber:
                 raise SubscriberException('PG_HLR No subscriber found')
         except psycopg2.DatabaseError as e:
             raise SubscriberException('PG_HLR error getting subscriber: %s' % e)
+        finally:
+            cur.close()
 
     def expire_lu(self, msisdn):
         try:
@@ -561,8 +580,8 @@ class Subscriber:
             raise SubscriberException('PG_HLR error updating info: %s' % e)
 
     def update_location_pghlr(self, subscriber):
+        cur = self._open_local_cursor()
         try:
-            cur = self._local_db_conn.cursor()
             update_date = datetime.datetime.fromtimestamp(subscriber.data['updated'])
             cur.execute(
                 'UPDATE hlr SET msisdn = %(msisdn)s, home_bts = %(home_bts)s, current_bts = %(current_bts)s, '
@@ -578,10 +597,12 @@ class Subscriber:
             self._local_db_conn.commit()
         except psycopg2.DatabaseError as e:
             raise SubscriberException('Database error: %s' % e)
+        finally:
+            cur.close()
 
     def update_location_local_hlr(self, extension, current_bts=False):
+        cur = self._open_local_cursor()
         try:
-            cur = self._local_db_conn.cursor()
             if current_bts is False:
                 cur.execute(
                     'UPDATE hlr SET current_bts = home_bts, updated = %(updated)s WHERE msisdn = %(msisdn)s',
@@ -595,6 +616,8 @@ class Subscriber:
             self._local_db_conn.commit()
         except psycopg2.DatabaseError as e:
             raise SubscriberException('Database error: %s' % e)
+        finally:
+            cur.close()
 
     def delete(self, msisdn):
         subscriber_number = msisdn[-5:]
@@ -604,8 +627,8 @@ class Subscriber:
             pass
 
         # PG_HLR delete subscriber
+        cur = self._open_local_cursor()
         try:
-            cur = self._local_db_conn.cursor()
             cur.execute(
                 'DELETE FROM subscribers WHERE msisdn = %(msisdn)s',
                 {'msisdn': msisdn}
@@ -618,10 +641,10 @@ class Subscriber:
             # TODO(matt9j) This might leak a transaction if the subscriber is not in the hlr
             if cur.rowcount > 0:
                self._local_db_conn.commit()
-            cur.close()
         except psycopg2.DatabaseError as e:
-            cur.close()
             pass
+        finally:
+            cur.close()
 
         self._delete_in_distributed_hlr(msisdn)
 
@@ -642,8 +665,8 @@ class Subscriber:
             raise SubscriberException("Unknown auth mode '{}'".format(auth))
 
         # disable/enable subscriber on PG Subscribers
+        cur = self._open_local_cursor()
         try:
-            cur = self._local_db_conn.cursor()
             cur.execute(
                 'UPDATE subscribers SET authorized = %(auth)s WHERE msisdn = %(msisdn)s',
                 {'auth': auth, 'msisdn': msisdn}
@@ -656,6 +679,8 @@ class Subscriber:
         except psycopg2.DatabaseError as e:
             self._local_db_conn.rollback()
             raise SubscriberException('PG_HLR error changing auth status: %s' % e)
+        finally:
+            cur.close()
 
         # try:
         #     now = int(time.time())
@@ -678,8 +703,8 @@ class Subscriber:
     def subscription(self, msisdn, status):
         # status 0 - subscription not paid
         # status 1 - subscription paid
+        cur = self._open_local_cursor()
         try:
-            cur = self._local_db_conn.cursor()
             cur.execute(
                 'SELECT subscription_status FROM subscribers WHERE msisdn = %(msisdn)s',
                 {'msisdn': msisdn}
@@ -706,6 +731,8 @@ class Subscriber:
                 raise SubscriberException('PG_HLR Subscriber not found')
         except psycopg2.DatabaseError as e:
             raise SubscriberException('PG_HLR error changing subscriber subscription status: %s' % e)
+        finally:
+            cur.close()
 
     def edit(self, msisdn, name, balance, location, equipment, roaming):
         parameter_set = {
@@ -718,8 +745,8 @@ class Subscriber:
         update_set = {col: value for col, value in parameter_set if value != ""}
 
         # PG_HLR update subscriber data
+        cur = self._open_local_cursor()
         try:
-            cur = self._local_db_conn.cursor()
             query = "UPDATE subscribers SET ({}) = %s WHERE msisdn = %s".format(
                 ', '.join(update_set.keys())
             )
@@ -732,8 +759,10 @@ class Subscriber:
                 self._local_db_conn.commit()
                 raise SubscriberException('PG_HLR No subscriber found')
         except psycopg2.DatabaseError as e:
-            cur.execute("rollback")
+            self._local_db_conn.rollback()
             raise SubscriberException('PG_HLR error updating subscriber data: %s' % e)
+        finally:
+            cur.close()
 
     def get_imsi(self, msisdn):
         try:
@@ -751,8 +780,8 @@ class Subscriber:
             raise SubscriberException('SQ_HLR error provisioning the subscriber %s' % e)
 
     def _provision_in_database(self, msisdn, name, balance, location='', equipment=''):
+        cur = self._open_local_cursor()
         try:
-            cur = self._local_db_conn.cursor()
             cur.execute(
                 'INSERT INTO subscribers(msisdn,name,authorized,balance,subscription_status, '
                 'location, equipment) '
@@ -777,6 +806,8 @@ class Subscriber:
         except psycopg2.DatabaseError as e:
             self._local_db_conn.rollback()
             raise SubscriberException('PG_HLR error provisioning the subscriber: %s' % e)
+        finally:
+            cur.close()
 
     def provision_in_distributed_hlr(self, imsi, msisdn):
         try:
@@ -802,6 +833,14 @@ class Subscriber:
             raise SubscriberException('RK_HLR error: %s' % e)
         except socket.error:
             raise SubscriberException('RK_HLR error: unable to connect')
+
+    def _open_local_cursor(self):
+        """Opens a new cursor to the local DB or raises a SubscriberException
+        """
+        try:
+            return self._local_db_conn.cursor()
+        except psycopg2.DatabaseError as err:
+            raise SubscriberException("DB connection error {}".format(err))
 
 
 if __name__ == '__main__':
