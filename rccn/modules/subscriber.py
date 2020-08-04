@@ -36,7 +36,7 @@ from config import (db_conn, sq_hlr_path, config, api_log, roaming_log, RIAK_TIM
 from decimal import Decimal
 from modules.osmohlr import (OsmoHlr, OsmoHlrError)
 from modules.osmomsc import (OsmoMsc, OsmoMscError)
-from ESL import *
+from ESL import ESLconnection
 
 
 class SubscriberException(Exception):
