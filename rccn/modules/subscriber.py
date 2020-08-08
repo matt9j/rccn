@@ -740,13 +740,13 @@ class Subscriber:
             "equipment": equipment,
             "roaming": roaming
         }
-        update_set = {col: value for col, value in parameter_set if value != ""}
-
+        update_set = {col: value for col, value in parameter_set.items() if value != ""}
         # PG_HLR update subscriber data
         cur = self._open_local_cursor()
         try:
-            query = "UPDATE subscribers SET ({}) = %s WHERE msisdn = %s".format(
-                ', '.join(update_set.keys())
+            query = "UPDATE subscribers SET ({}) = ({}) WHERE msisdn = %s".format(
+                ', '.join(update_set.keys()),
+                ', '.join('%s' for _ in update_set.keys())
             )
             params = list(update_set.values())
             params.append(msisdn)
