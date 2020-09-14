@@ -1,8 +1,8 @@
 #!/bin/bash
 
 LOGFILE="/var/log/sms_cleanup.log"
-SMS_DB="/var/lib/osmocom/hlr.sqlite3"
-SMS_DB_BKP="/home/rhizomatica/sms/hlr_`date '+%d%m%Y'`.sqlite3"
+SMS_DB="/var/lib/osmocom/sms.db"
+SMS_DB_BKP="/home/rhizomatica/sms/sms_`date '+%d%m%Y'`.db"
 
 function logc() {
 	txt=$1

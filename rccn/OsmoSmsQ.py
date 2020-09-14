@@ -442,7 +442,7 @@ if __name__ == '__main__':
     unsent =  False
     sent = False  
     parser.add_option("-p", "--sms-db", dest="sms_db",
-        help="Specify SMS database (default is /var/lib/osmocom/hlr.sqlite3)")
+        help="Specify SMS database (default is /var/lib/osmocom/sms.db)")
     parser.add_option("-q", "--show-queue", dest="showq", action="store_true",
         help="Display Summary Information about the Osmo SMS Queue")
     parser.add_option("-i", "--id", dest="msgid",
@@ -484,7 +484,7 @@ if __name__ == '__main__':
     if options.sms_db:
         sms_db = options.sms_db
     else:
-        sms_db = '/var/lib/osmocom/hlr.sqlite3'
+        sms_db = '/var/lib/osmocom/sms.db'
 
     logging.basicConfig(stream=sys.stderr)
     if options.debug:
