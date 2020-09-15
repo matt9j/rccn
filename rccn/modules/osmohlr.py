@@ -19,7 +19,7 @@
 #
 ############################################################################
 
-""" Adaptor to interface with osmocom-nitb vty and db instead of hlr and msc
+""" This module contains adaptors to interface with the osmohlr vty and db
 """
 
 # Python3/2 compatibility
@@ -28,9 +28,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from modules.osmohlr import OsmoHlrError
-from modules.osmomsc import OsmoMscError
-from config import NoDataException
 from osmopy import obscvty
 import logging
 import sqlite3
@@ -38,19 +35,23 @@ import sqlite3
 log = logging.getLogger(__name__)
 
 
-class OsmoNitb(object):
-    """Wraps NITB operations with an interface matching OsmoMsc and OsmoHlr
+class OsmoHlrError(Exception):
+    pass
 
-    The nitb db is not a stable interface, so updates may have to made to
+
+class OsmoHlr(object):
+    """Encapsulates low-level HLR transactions with an internal interface
+
+    The osmohlr db is not a stable interface, so updates may have to made to
     support changes to the db structure over time.
 
     The VTY itself is also not a stable interface, so changes and updates may
-    need to happen here with new released versions of osmocom-nitb.
+    need to happen here with new released versions of the HLR.
     """
 
-    def __init__(self, ip_address, vty_port, hlr_db_path):
+    def __init__(self, ip_address, ctrl_port, vty_port, hlr_db_path):
         self.hlr_db_path = hlr_db_path
-        self._appstring = "OpenBSC"
+        self._appstring = "OsmoHLR"
         self._ip = ip_address
         self._vty_port = vty_port
         self._vty = obscvty
@@ -59,12 +60,18 @@ class OsmoNitb(object):
         try:
             sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute("SELECT extension FROM subscriber WHERE imsi=%(imsi)s" % {'imsi': imsi})
-            connected = sq_hlr_cursor.fetchone()
+            sq_hlr_cursor.execute(
+                "SELECT msisdn FROM subscriber WHERE imsi=?",
+                [imsi]
+            )
+            connected = sq_hlr_cursor.fetchall()
             sq_hlr.close()
-            if len(connected) <= 0:
+            if len(connected) == 0:
                 raise OsmoHlrError('imsi %s not found' % imsi)
-            return connected[0]
+            if len(connected) > 1:
+                log.critical("Multiple msisdn entries share imsi %s : %s", imsi, connected)
+
+            return connected[0][0]
         except sqlite3.Error as e:
             sq_hlr.close()
             raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
@@ -76,28 +83,25 @@ class OsmoNitb(object):
         try:
             sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute('SELECT extension,imsi from subscriber WHERE extension=?', [(msisdn)])
-            extension = sq_hlr_cursor.fetchone()
-            if  extension == None:
-                raise OsmoHlrError('Extension not found in the OsmoHLR')
-            imsi = extension[1]
+            sq_hlr_cursor.execute('SELECT imsi from subscriber WHERE msisdn=?', [msisdn])
+            imsi = sq_hlr_cursor.fetchone()
+            if imsi is not None:
+                imsi = imsi[0]
         except sqlite3.Error as e:
             raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
-        return str(imsi)
+
+        return imsi
 
     def get_msisdn_from_imei(self, imei):
         try:
             sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
-            sql = ('SELECT Equipment.imei, Subscriber.imsi, '
-                   'Subscriber.extension, Subscriber.updated '
-                   'FROM Equipment, EquipmentWatch, Subscriber '
-                   'WHERE EquipmentWatch.equipment_id=Equipment.id '
-                   'AND EquipmentWatch.subscriber_id=Subscriber.id '
-                   'AND Equipment.imei=? '
-                   'ORDER BY Subscriber.updated DESC LIMIT 1;')
-            print(sql)
-            sq_hlr_cursor.execute(sql, [(imei)])
+            sql = ('SELECT subscriber.imei, subscriber.imsi, '
+                   'subscriber.msisdn, Subscriber.last_lu_seen '
+                   'FROM subscriber '
+                   'WHERE subscriber.imei=? '
+                   'ORDER BY subscriber.last_lu_seen DESC LIMIT 1;')
+            sq_hlr_cursor.execute(sql, [imei])
             extensions = sq_hlr_cursor.fetchall()
             sq_hlr.close()
             return extensions
@@ -109,29 +113,21 @@ class OsmoNitb(object):
         try:
             sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute("SELECT id, extension FROM subscriber WHERE length(extension) = 5")
-            extensions = sq_hlr_cursor.fetchall()
-            if extensions == []:
-                raise NoDataException('No extensions found')
-            else:
-                sq_hlr.close()
-                return extensions
+            sq_hlr_cursor.execute("SELECT id, msisdn FROM subscriber WHERE length(msisdn) = 5 ")
+            msisdns = sq_hlr_cursor.fetchall()
+            return msisdns
         except sqlite3.Error as e:
             sq_hlr.close()
             raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
 
     def get_all_11digit_last_location_updates(self):
-        # Note: ported from get_all_expire(self):
         try:
             sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute("SELECT extension,updated FROM subscriber WHERE length(extension) = 11")
-            subscribers = sq_hlr_cursor.fetchall()
-            if subscribers == []:
-                raise NoDataException('No subscribers found')
-            else:
-                sq_hlr.close()
-                return subscribers
+            sq_hlr_cursor.execute("SELECT msisdn, last_lu_seen FROM subscriber WHERE length(msisdn) = 11 ")
+            result_tuples = sq_hlr_cursor.fetchall()
+            result_mapping = {result[0]: result[1] for result in result_tuples}
+            return result_mapping
         except sqlite3.Error as e:
             sq_hlr.close()
             raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
@@ -140,17 +136,11 @@ class OsmoNitb(object):
         try:
             sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
-            sql = 'SELECT DISTINCT Equipment.imei FROM Equipment '
+            sql = 'SELECT DISTINCT subscriber.imei FROM subscriber '
             sq_hlr_cursor.execute(sql)
             imeis = sq_hlr_cursor.fetchall()
             sq_hlr.close()
-            if imeis == []:
-                return []
-            if len(imeis) == 1:
-                data = self.get_msisdn_from_imei(imeis[0][0])
-                return data
-            else:
-                return imeis
+            return imeis
         except sqlite3.Error as e:
             sq_hlr.close()
             raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
@@ -159,21 +149,11 @@ class OsmoNitb(object):
         try:
             sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
-            sql = 'SELECT DISTINCT Equipment.imei FROM Equipment '
-            if partial_imei != '':
-                sql += 'WHERE Equipment.imei LIKE ? ORDER BY Equipment.imei ASC'
-                sq_hlr_cursor.execute(sql, [(partial_imei+'%')])
-            else:
-                sq_hlr_cursor.execute(sql)
+            sql = 'SELECT DISTINCT subscriber.imei FROM subscriber WHERE subscriber.imei LIKE ? ORDER BY subscriber.imei ASC'
+            sq_hlr_cursor.execute(sql, [(partial_imei+'%')])
             imeis = sq_hlr_cursor.fetchall()
             sq_hlr.close()
-            if imeis == []:
-                return []
-            if len(imeis) == 1:
-                data = self.get_msisdn_from_imei(imeis[0][0])
-                return data
-            else:
-                return imeis
+            return imeis
         except sqlite3.Error as e:
             sq_hlr.close()
             raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
@@ -182,10 +162,18 @@ class OsmoNitb(object):
         """Get all msisdns that have been inactive for :days:, ignoring those
         beginning with the :ignore_prefix:
         """
+
+        # TODO This function was migrated from existing code, and could
+        #  probably use some refactoring.
         try:
             sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute("SELECT extension FROM subscriber WHERE (length(extension) = 5 OR extension NOT LIKE \"%(prefix)s%%\") AND updated < date('now', '-%(days)s days')" % {'days': days, 'prefix': ignore_prefix})
+            sq_hlr_cursor.execute(
+                "SELECT msisdn FROM subscriber "
+                "WHERE (length(msisdn) = 5 OR msisdn NOT LIKE ?) AND "
+                "last_lu_seen < date('now', ?)",
+                [(ignore_prefix+'%'), "-{} days".format(days)]
+            )
             inactive = sq_hlr_cursor.fetchall()
             sq_hlr.close()
             return inactive
@@ -196,99 +184,81 @@ class OsmoNitb(object):
 
     def get_all_inactive_roaming_msisdns(self, ignore_prefix):
         """Get all roaming msisdns (defined as length 11, unattached,
-        from external prefix) , ignoring those beginning with the
+        from external prefix), ignoring those beginning with the
         :ignore_prefix:
         """
+
+        # TODO This function was migrated from existing code, and could
+        #  probably use some refactoring.
+        sq_hlr = _open_sqlite_connection(self.hlr_db_path)
         try:
-            sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute("SELECT extension FROM subscriber WHERE length(extension) = 11 AND extension NOT LIKE '%s%%' AND lac = 0" % ignore_prefix)
+            sq_hlr_cursor.execute(
+                "SELECT msisdn FROM subscriber "
+                "WHERE length(msisdn) = 11 AND msisdn NOT LIKE ?",
+                [(ignore_prefix+'%')]
+            )
+
             inactive = sq_hlr_cursor.fetchall()
-            sq_hlr.close()
             return inactive
         except sqlite3.Error as e:
-            sq_hlr.close()
             raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
+        finally:
+            sq_hlr.close()
 
     def get_all_inactive_roaming_msisdns_since(self, days, ignore_prefix):
         """Get all roaming msisdns (defined as length 11, unattached,
         from external prefix) that have been inactive for :days:, ignoring
         those beginning with the :ignore_prefix:
         """
+
+        # TODO This function was migrated from existing code, and could
+        #  probably use some refactoring.
         try:
             sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
-            _sql=("SELECT extension FROM subscriber WHERE length(extension) = 11 AND extension NOT LIKE \"%(prefix)s%%\" AND lac = 0 AND updated < date('now', '-%(days)s days')" % {'days': days, 'prefix': ignore_prefix})
-            sq_hlr_cursor.execute(_sql)
+            sq_hlr_cursor.execute(
+                "SELECT msisdn FROM subscriber "
+                "WHERE length(msisdn) = 11 AND msisdn NOT LIKE ? AND "
+                "last_lu_seen < date('now', ?)",
+                [(ignore_prefix+'%'), "-{} days".format(days)]
+            )
+
             inactive = sq_hlr_cursor.fetchall()
             sq_hlr.close()
             return inactive
+
         except sqlite3.Error as e:
             sq_hlr.close()
             raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
 
     def show_by_msisdn(self, msisdn):
         vty = self._vty.VTYInteract(self._appstring, self._ip, self._vty_port)
-        cmd = 'show subscriber extension {}'.format(msisdn)
+        cmd = 'subscriber msisdn {} show'.format(msisdn)
         subscriber_data = vty.command(cmd, close=True)
         return subscriber_data
 
     def update_msisdn(self, current_msisdn, new_msisdn):
         vty = self._vty.VTYInteract(self._appstring, self._ip, self._vty_port)
-        cmd = 'subscriber extension {} extension {}'.format(
+        cmd = 'subscriber msisdn {} update msisdn {}'.format(
             current_msisdn, new_msisdn
         )
         vty.enabled_command(cmd, close=True)
 
     def delete_by_msisdn(self, msisdn):
         vty = self._vty.VTYInteract(self._appstring, self._ip, self._vty_port)
-        cmd = 'subscriber extension {} delete'.format(msisdn)
+        cmd = 'subscriber msisdn {} delete'.format(msisdn)
         vty.enabled_command(cmd, close=True)
 
     def enable_access_by_msisdn(self, msisdn):
-        vty = self._vty.VTYInteract(self._appstring, self._ip, self._vty_port)
-        cmd = 'subscriber extension {} authorized 1'.format(msisdn)
-        vty.enabled_command(cmd, close=True)
+        self._set_access_by_msisdn(msisdn, "cs+ps")
 
     def disable_access_by_msisdn(self, msisdn):
+        self._set_access_by_msisdn(msisdn, "none")
+
+    def _set_access_by_msisdn(self, msisdn, access_string):
         vty = self._vty.VTYInteract(self._appstring, self._ip, self._vty_port)
-        cmd = 'subscriber extension {} authorized 0'.format(msisdn)
+        cmd = 'subscriber msisdn {} update network-access-mode {}'.format(
+            msisdn, access_string
+        )
         vty.enabled_command(cmd, close=True)
-
-    def get_active_subscribers(self):
-        try:
-            sq_hlr = sqlite3.connect(self.hlr_db_path)
-            sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute("SELECT imsi, extension FROM subscriber WHERE lac > 0")
-            connected = sq_hlr_cursor.fetchall()
-            sq_hlr.close()
-        except sqlite3.Error as e:
-            sq_hlr.close()
-            raise OsmoMscError('SQ_HLR error: %s' % e.args[0])
-
-        subscriber_list = []
-        for (imsi, msisdn) in connected:
-            subscriber_list.append({"imsi": imsi, "msisdn": msisdn})
-
-        return subscriber_list
-
-    def expire_subscriber_by_msisdn(self, msisdn):
-        try:
-            vty = obscvty.VTYInteract(self._appstring, self._ip, self._vty_port)
-            cmd = "subscriber extension {} expire".format(msisdn)
-            return_text = vty.enabled_command(cmd, close=True)
-            if return_text:
-                raise OsmoMscError("VTY cmd: `{}` returned: `{}`".format(cmd, return_text))
-        except IOError:
-            log.debug('Exception in expire_lu!', exc_info=True)
-
-
-def _open_sqlite_connection(path):
-    try:
-        return sqlite3.connect(path)
-    except sqlite3.Error as e:
-        raise OsmoHlrError("SQ_HLR connect error: {}".format(e))
-
-
-if __name__ == "__main__":
-    print(OsmoNitb("127.0.0.1", 4242, "/var/lib/osmocom/hlr.db").show_by_msisdn(36851))
