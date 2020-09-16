@@ -78,20 +78,6 @@ class OsmoNitb(object):
             sq_hlr.close()
             raise OsmoHlrError('SQ_HLR error: number not found')
 
-    def get_local_msisdn(self, imsi):
-        try:
-            sq_hlr = sqlite3.connect(self.hlr_db_path)
-            sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute("SELECT extension FROM subscriber WHERE imsi=%(imsi)s AND lac > 0" % {'imsi': imsi})
-            connected = sq_hlr_cursor.fetchall()
-            sq_hlr.close()
-            if len(connected) <= 0:
-                raise OsmoHlrError('imsi %s not found' % imsi)
-            return connected[0]
-        except sqlite3.Error as e:
-            sq_hlr.close()
-            raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
-
     def get_imsi_from_msisdn(self, msisdn):
         try:
             sq_hlr = sqlite3.connect(self.hlr_db_path)
