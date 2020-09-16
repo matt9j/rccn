@@ -126,11 +126,12 @@ class OsmoNitb(object):
             sq_hlr.close()
             raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
 
-    def get_all_expire(self):
+    def get_all_11digit_last_location_updates(self):
+        # Note: ported from get_all_expire(self):
         try:
             sq_hlr = sqlite3.connect(self.hlr_db_path)
             sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute("SELECT extension,expire_lu FROM subscriber WHERE length(extension) = 11")
+            sq_hlr_cursor.execute("SELECT extension,updated FROM subscriber WHERE length(extension) = 11")
             subscribers = sq_hlr_cursor.fetchall()
             if subscribers == []:
                 raise NoDataException('No subscribers found')
