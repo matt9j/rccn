@@ -33,6 +33,7 @@ from modules.osmomsc import OsmoMscError
 from config import NoDataException
 from osmopy import obscvty
 import logging
+import re
 import sqlite3
 
 log = logging.getLogger(__name__)
@@ -76,16 +77,18 @@ class OsmoNitb(object):
 
     def get_imsi_from_msisdn(self, msisdn):
         try:
-            sq_hlr = sqlite3.connect(self.hlr_db_path)
-            sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute('SELECT extension,imsi from subscriber WHERE extension=?', [(msisdn)])
-            extension = sq_hlr_cursor.fetchone()
-            if  extension == None:
-                raise OsmoHlrError('Extension not found in the OsmoHLR')
-            imsi = extension[1]
-        except sqlite3.Error as e:
-            raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
-        return str(imsi)
+            vty = self._get_vty_connection()
+            cmd = 'show subscriber extension {}'.format(msisdn)
+            # Do not close the socket with each imsi lookup since this
+            # function is called repeatedly at some callsites.
+            ret = vty.command(cmd, close=False)
+            m = re.compile('IMSI: ([0-9]*)').search(ret)
+            if m:
+                return m.group(1)
+            else:
+                raise NoDataException('No imsi found in vty with msisdn {}'.format(msisdn))
+        except IOError as e:
+            raise OsmoHlrError('VTY access error {}'.format(e.args[0]))
 
     def get_msisdn_from_imei(self, imei):
         try:

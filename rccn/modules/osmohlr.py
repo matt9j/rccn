@@ -28,8 +28,10 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from config import NoDataException
 from osmopy import obscvty
 import logging
+import re
 import sqlite3
 
 log = logging.getLogger(__name__)
@@ -81,19 +83,19 @@ class OsmoHlr(object):
             sq_hlr.close()
 
     def get_imsi_from_msisdn(self, msisdn):
-        sq_hlr = _open_sqlite_connection(self.hlr_db_path)
         try:
-            sq_hlr_cursor = sq_hlr.cursor()
-            sq_hlr_cursor.execute('SELECT imsi from subscriber WHERE msisdn=?', [msisdn])
-            imsi = sq_hlr_cursor.fetchone()
-            if imsi is not None:
-                imsi = imsi[0]
-        except sqlite3.Error as e:
-            raise OsmoHlrError('SQ_HLR error: %s' % e.args[0])
-        finally:
-            sq_hlr.close()
-
-        return imsi
+            vty = self._get_vty_connection()
+            cmd = 'show subscriber msisdn {}'.format(msisdn)
+            # Do not close the socket with each imsi lookup since this
+            # function is called repeatedly at some callsites.
+            ret = vty.command(cmd, close=False)
+            m = re.compile('IMSI: ([0-9]*)').search(ret)
+            if m:
+                return m.group(1)
+            else:
+                raise NoDataException('No imsi found in vty with msisdn {}'.format(msisdn))
+        except IOError as e:
+            raise OsmoHlrError('VTY access error {}'.format(e.args[0]))
 
     def get_msisdn_from_imei(self, imei):
         sq_hlr = _open_sqlite_connection(self.hlr_db_path)
