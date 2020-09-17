@@ -647,7 +647,7 @@ class Subscriber:
 
 
     def update(self, msisdn, name, number):
-        imsi = self._get_imsi(msisdn)
+        imsi = self.get_imsi_from_msisdn(msisdn)
         self._authorize_subscriber_in_local_hlr(msisdn, number)
         self.update_location(imsi, number, True)
 
@@ -780,7 +780,7 @@ class Subscriber:
 
         try:
             now = int(time.time())
-            imsi=self._get_imsi(msisdn)
+            imsi=self.get_imsi_from_msisdn(msisdn)
             rk_hlr = self._riak_client.bucket('hlr')
             subscriber = rk_hlr.get(imsi, timeout=RIAK_TIMEOUT)
             if subscriber.exists:
@@ -858,7 +858,7 @@ class Subscriber:
         finally:
             cur.close()
 
-    def _get_imsi(self, msisdn):
+    def get_imsi_from_msisdn(self, msisdn):
         try:
             imsi = self._osmo_hlr.get_imsi_from_msisdn(msisdn)
         except OsmoHlrError as e:
